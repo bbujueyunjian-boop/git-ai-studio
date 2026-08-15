@@ -8,6 +8,12 @@ Version bumps are manual — see [CONTRIBUTING.md](CONTRIBUTING.md#releasing-a-n
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-08-15
+
+### Fixed
+
+- Per-file AI line badges in Commit Attribution now include the `s_<session>::t_<trace>` note format used by current git-ai releases, instead of appearing empty for Codex and other session-based agents.
+
 ## [0.3.5] - 2026-06-07
 
 ### Fixed
@@ -99,7 +105,8 @@ Version bumps are manual — see [CONTRIBUTING.md](CONTRIBUTING.md#releasing-a-n
 - Self-hosted hook server (Windows scheduled task + VBS shim + Node HTTP server). Hooks now go exclusively through the official `git ai install-hooks`.
 - Feishu webhook push (replaced by OS-native notifications).
 
-[Unreleased]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.3.6...HEAD
+[0.3.6]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.3.5...v0.3.6
 [0.3.2]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.2.0...v0.3.0
