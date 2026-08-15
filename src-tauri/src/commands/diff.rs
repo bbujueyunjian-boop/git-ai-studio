@@ -257,15 +257,15 @@ pub fn parse_diff_tree_name_status(stdout: &str) -> Vec<ChangedFile> {
 /// 把 `notes_ai::AuthorshipLog.attestations` 展开为 `AiLineRef` 列表。
 ///
 /// 算法:
-/// 1. 跳过非 prompt 的 attestation(h_ / s_ 前缀是 human / session,对"AI 行"语义不属于 AI)
+/// 1. 跳过 `h_` known-human attestation;`s_` session 与无前缀 legacy prompt 都属于 AI
 /// 2. `line_ranges` 字符串按上游 `format_line_ranges` 真源解析:逗号分隔,每段 `n` 或 `start-end`
-/// 3. 同 file 不同 entry 的段直接堆叠,UI 自己去重 / 合并(后端只投影,不规整)
+/// 3. 同 file 不同 entry 的段直接展开,本函数不去重或合并
 pub fn expand_ai_lines_from_attestations(log: &notes_ai::AuthorshipLog) -> Vec<AiLineRef> {
     let mut out: Vec<AiLineRef> = Vec::new();
     for file in &log.attestations {
         for entry in &file.entries {
-            // 只保留 prompt(AI)归因;humans / sessions 不算"AI 行"
-            if entry.hash.starts_with("h_") || entry.hash.starts_with("s_") {
+            // v3:`h_` 是 known human;`s_<session>::t_<trace>` 与 legacy prompt 都是 AI。
+            if entry.hash.starts_with("h_") {
                 continue;
             }
             for (start, end) in parse_line_ranges(&entry.line_ranges) {
@@ -436,8 +436,8 @@ mod tests {
     // ===== expand_ai_lines_from_attestations =====
 
     #[test]
-    fn expand_ai_lines_skips_human_and_session() {
-        // prompt(无前缀)→ 进入结果;h_ / s_ 跳过
+    fn expand_ai_lines_includes_legacy_and_session_skips_human() {
+        // legacy prompt(无前缀)和 s_ session 都进入结果;仅 h_ known human 跳过
         let log_text = r#"src/main.rs
   abcd1234abcd1234 1-10,15
   h_31dce776f88375 11-14
@@ -456,13 +456,18 @@ src/lib.rs
     }
   },
   "humans": { "h_31dce776f88375": {"author":"Alice"} },
-  "sessions": {}
+  "sessions": {
+    "s_abcdef0123456": {
+      "agent_id": {"tool":"codex","id":"session-1","model":"gpt-5.6-sol"},
+      "human_author": "Alice"
+    }
+  }
 }
 "#;
         let log = notes_ai::parse_authorship_log(log_text).unwrap();
         let lines = expand_ai_lines_from_attestations(&log);
-        // 只 prompt 段 src/main.rs 1-10,15 进结果;human/session 都过滤
-        assert_eq!(lines.len(), 2);
+        // legacy prompt 两段 + session 一段进入结果;human 段被过滤
+        assert_eq!(lines.len(), 3);
         assert_eq!(
             lines[0],
             AiLineRef {
@@ -477,6 +482,14 @@ src/lib.rs
                 file: "src/main.rs".into(),
                 line_start: 15,
                 line_end: 15,
+            }
+        );
+        assert_eq!(
+            lines[2],
+            AiLineRef {
+                file: "src/lib.rs".into(),
+                line_start: 1,
+                line_end: 50,
             }
         );
     }
