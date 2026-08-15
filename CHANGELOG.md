@@ -8,6 +8,17 @@ Version bumps are manual — see [CONTRIBUTING.md](CONTRIBUTING.md#releasing-a-n
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-15
+
+### Added
+
+- Commit Attribution now shows each changed file's AI share as AI-attributed added lines divided by all lines added to that file. The file row also exposes AI, human, and unknown additions, while deletions remain outside the denominator.
+- The Commit Attribution summary now states the current repository, branch, HEAD-reachable commit window, active filters, and exact formulas for all five headline metrics.
+
+### Fixed
+
+- Clearing the repository aggregate set now immediately removes the Dashboard's historical and working-tree roll-ups, so repositories and numbers that were just removed no longer remain visible.
+
 ## [0.3.6] - 2026-08-15
 
 ### Fixed
@@ -105,7 +116,8 @@ Version bumps are manual — see [CONTRIBUTING.md](CONTRIBUTING.md#releasing-a-n
 - Self-hosted hook server (Windows scheduled task + VBS shim + Node HTTP server). Hooks now go exclusively through the official `git ai install-hooks`.
 - Feishu webhook push (replaced by OS-native notifications).
 
-[Unreleased]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.3.6...HEAD
+[Unreleased]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.3.6...v0.4.0
 [0.3.6]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.3.5...v0.3.6
 [0.3.2]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.3.0...v0.3.1

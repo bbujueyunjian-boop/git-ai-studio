@@ -1,6 +1,6 @@
 [package]
 name = "git-ai-studio"
-version = "0.3.6"
+version = "0.4.0"
 description = "git-ai client toolkit: env diagnostics, install/upgrade and local AI code stats viewer"
 authors = []
 edition = "2021"
