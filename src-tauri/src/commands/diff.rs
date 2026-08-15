@@ -85,7 +85,9 @@ pub enum ChangedFilesResult {
         /// merge 不任选某个 parent 计算分母，与 git-ai commit stats 的 merge 口径一致。
         is_merge: bool,
     },
-    Degraded { reason: DiffDegradedReason },
+    Degraded {
+        reason: DiffDegradedReason,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -539,13 +541,10 @@ fn parse_zero_context_added_ranges(
             let end = new_start
                 .checked_add(new_count - 1)
                 .ok_or_else(|| format!("hunk new range 溢出: {line:?}"))?;
-            result
-                .entry(path.clone())
-                .or_default()
-                .push(LineRange {
-                    start: new_start,
-                    end,
-                });
+            result.entry(path.clone()).or_default().push(LineRange {
+                start: new_start,
+                end,
+            });
         }
     }
 
@@ -601,7 +600,10 @@ fn attach_file_line_stats(
         let Some(stats) = file.line_stats.as_mut() else {
             continue;
         };
-        let ranges = added_ranges.get(&file.path).map(Vec::as_slice).unwrap_or(&[]);
+        let ranges = added_ranges
+            .get(&file.path)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
         let additions_from_hunks = ranges.iter().try_fold(0u32, |sum, range| {
             sum.checked_add(range.end - range.start + 1)
                 .ok_or_else(|| format!("diff 新增行数溢出: {}", file.path))
@@ -628,7 +630,10 @@ fn attach_file_line_stats(
         stats.unknown_additions = unknown;
     }
 
-    if let Some(path) = added_ranges.keys().find(|path| !files.iter().any(|f| &f.path == *path)) {
+    if let Some(path) = added_ranges
+        .keys()
+        .find(|path| !files.iter().any(|f| &f.path == *path))
+    {
         return Err(format!("diff hunk 路径缺少 raw/numstat: {path}"));
     }
     Ok(())
@@ -959,7 +964,10 @@ mod tests {
     #[test]
     fn parse_commit_parents_covers_root_normal_and_merge() {
         assert!(parse_commit_parents("self\n").unwrap().is_empty());
-        assert_eq!(parse_commit_parents("self parent\n").unwrap(), vec!["parent"]);
+        assert_eq!(
+            parse_commit_parents("self parent\n").unwrap(),
+            vec!["parent"]
+        );
         assert_eq!(
             parse_commit_parents("self p1 p2\n").unwrap(),
             vec!["p1", "p2"]
@@ -1042,9 +1050,8 @@ mod tests {
 
     #[test]
     fn attribution_separates_ai_human_and_unknown() {
-        let log = attribution_log(
-            "  s_abcdef0123456::t_1234567890abcd 1-2\n  h_31dce776f88375 3-5\n",
-        );
+        let log =
+            attribution_log("  s_abcdef0123456::t_1234567890abcd 1-2\n  h_31dce776f88375 3-5\n");
         let mut files = vec![ChangedFile {
             path: "src/x.rs".into(),
             status: "M".into(),
@@ -1056,10 +1063,7 @@ mod tests {
                 unknown_additions: 0,
             }),
         }];
-        let ranges = BTreeMap::from([(
-            "src/x.rs".into(),
-            vec![LineRange { start: 1, end: 10 }],
-        )]);
+        let ranges = BTreeMap::from([("src/x.rs".into(), vec![LineRange { start: 1, end: 10 }])]);
         attach_file_line_stats(&mut files, &ranges, Some(&log)).unwrap();
         let stats = files[0].line_stats.as_ref().unwrap();
         assert_eq!(stats.ai_additions, 2);
@@ -1084,10 +1088,7 @@ mod tests {
                 unknown_additions: 0,
             }),
         }];
-        let ranges = BTreeMap::from([(
-            "src/x.rs".into(),
-            vec![LineRange { start: 1, end: 3 }],
-        )]);
+        let ranges = BTreeMap::from([("src/x.rs".into(), vec![LineRange { start: 1, end: 3 }])]);
         attach_file_line_stats(&mut files, &ranges, None).unwrap();
         assert_eq!(files[0].line_stats.as_ref().unwrap().unknown_additions, 3);
     }
