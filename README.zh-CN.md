@@ -8,12 +8,14 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
-![Status](https://img.shields.io/badge/status-pre--alpha-orange)
+![Version](https://img.shields.io/badge/version-v0.4.0-brightgreen)
 [English](README.md)
 
 </div>
 
 ---
+
+![Git AI Studio 用户手册与本地 Git AI 命令界面](docs/assets/git-ai-studio-user-manual.png)
 
 ## 这是什么
 
@@ -44,7 +46,15 @@ git-ai-studio 把你本机 git 历史中的 AI 归因数据,变成一个随手�
 
 ## 快速开始
 
-> Pre-alpha 阶段。发布二进制还未推出。当前从源码构建:
+> Early access 阶段。请从 [GitHub Releases](https://github.com/bujueyunjian/git-ai-studio/releases/latest) 下载最新安装包。
+
+- **macOS**: 下载 `.dmg`,拖到 Applications
+- **Linux**: 按架构下载 `.AppImage` 或 `.deb`
+- **Windows**: 下载 `.msi`;在尚未提供代码签名时,Windows 可能显示首次运行安全提示
+
+打开后选择一个含 `refs/notes/ai` 的仓库即可。如果仓库还没有 notes,按应用内 Hooks 引导为你的 agent 安装 `git-ai` 官方 hook,下一次 AI 辅助 commit 就会出现在 Dashboard。
+
+从源码运行:
 
 ```bash
 # 环境要求: Node 20+ / pnpm 9+ / Rust 1.80+ / 已装 git-ai CLI
@@ -52,17 +62,11 @@ pnpm install
 pnpm tauri:dev
 ```
 
-发布后通过 GitHub Releases 安装:
-
-- **macOS**: 下载 `.dmg`,拖到 Applications
-- **Linux**: 下载 `.AppImage`(通用)或 `.deb`(Debian / Ubuntu)
-- **Windows**: 下载 `.msi` —— v1.0 未签名,需手动绕过 SmartScreen(代码签名计划在 v1.1)
-
-打开后选一个有 `refs/notes/ai` 的仓库即可。如果仓库还没有 notes,按应用内 Hooks 引导为你的 agent 装上 `git-ai` 官方 hook,下一次 AI 辅助 commit 就会出现在 Dashboard。
-
 ## 当前状态
 
-**Pre-alpha**。PR-FAQ 已锁定,重构进行中,首个公开 release(v0.1)进度见 [issues](../../issues)。v1.0 前必须完成 3 件事:
+**Early access,当前版本为 [v0.4.0](https://github.com/bujueyunjian/git-ai-studio/releases/tag/v0.4.0)。** 项目从 2026 年 5 月起已经面向 macOS、Linux、Windows 发布 10 个公开版本,开发过程、Release 历史和 issue 跟踪均公开;v1.0 仍以更广泛的真实用户验证为目标。
+
+v1.0 前计划完成:
 
 1. 3 个真实用户访谈,验证"日打开"假设(见 [PR-FAQ](docs/product/PR-FAQ.zh-CN.md))
 2. 4 周本地 opt-in 使用计数器试用 readout(5 个朋友)
@@ -84,7 +88,7 @@ git-ai-studio 是**独立的开源项目,与 Git AI 商业团队无 affiliate �
 
 ## 贡献
 
-PR 欢迎 —— 见 `CONTRIBUTING.md`(随 v0.1 一起发布)。非平凡改动请先开 issue 对齐 scope。
+PR 欢迎 —— 见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。非平凡改动请先开 issue 对齐 scope。
 
 ## 许可
 

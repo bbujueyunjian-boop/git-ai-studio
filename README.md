@@ -8,12 +8,14 @@ A free desktop dashboard for AI code authorship — for macOS, Linux, and Window
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
-![Status](https://img.shields.io/badge/status-pre--alpha-orange)
+![Version](https://img.shields.io/badge/version-v0.4.0-brightgreen)
 [简体中文](README.zh-CN.md)
 
 </div>
 
 ---
+
+![Git AI Studio user manual showing local-first Git AI commands](docs/assets/git-ai-studio-user-manual.png)
 
 ## What it is
 
@@ -44,7 +46,15 @@ All parsing happens locally. No account, no telemetry, no crash reporter — jus
 
 ## Quick start
 
-> Pre-alpha. Release binaries are not yet published. Build from source:
+> Early access. Download the latest installer from [GitHub Releases](https://github.com/bujueyunjian/git-ai-studio/releases/latest).
+
+- **macOS**: download the `.dmg` and drag the app to Applications
+- **Linux**: download the `.AppImage` or `.deb` package for your architecture
+- **Windows**: download the `.msi`; Windows may show a first-run security warning while code signing is not available
+
+Then point the app at any git repository with `refs/notes/ai`. If the repo has no notes yet, follow the in-app Hooks guide to install official `git-ai` hooks for your agent (Claude Code / Cursor / Codex / OpenCode); your next AI-assisted commit appears live.
+
+To build from source:
 
 ```bash
 # Requirements: Node 20+, pnpm 9+, Rust 1.80+, git-ai CLI installed
@@ -52,17 +62,11 @@ pnpm install
 pnpm tauri:dev
 ```
 
-Once binaries ship via GitHub Releases, install will be:
-
-- **macOS**: download `.dmg`, drag to Applications
-- **Linux**: download `.AppImage` (universal) or `.deb` (Debian / Ubuntu)
-- **Windows**: download `.msi` — v1.0 is unsigned, bypass SmartScreen manually (code-signing tracked for v1.1)
-
-Then point the app at any git repository with `refs/notes/ai`. If the repo has no notes yet, follow the in-app Hooks guide to install official `git-ai` hooks for your agent (Claude Code / Cursor / Codex / OpenCode); your next AI-assisted commit appears live.
-
 ## Status
 
-**Pre-alpha**. PR-FAQ is locked, refactor in progress, first public release (v0.1) tracked in [project issues](../../issues). Three things must happen before v1.0:
+**Early access. Current version: [v0.4.0](https://github.com/bujueyunjian/git-ai-studio/releases/tag/v0.4.0).** The project has shipped 10 public releases for macOS, Linux, and Windows since May 2026. Development, release history, and issue tracking are public; v1.0 remains the milestone for broader user validation.
+
+Before v1.0, the project aims to complete:
 
 1. 3 real user interviews validating the daily-glance assumption (see [PR-FAQ](docs/product/PR-FAQ.md))
 2. 4-week local opt-in usage-counter readout from 5 friends
@@ -84,7 +88,7 @@ git-ai-studio is an **independent open-source project, not affiliated with the G
 
 ## Contributing
 
-PRs welcome — see `CONTRIBUTING.md` (coming with v0.1). Please open an issue first for non-trivial changes so we can align on scope.
+PRs welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md). Please open an issue first for non-trivial changes so we can align on scope.
 
 ## License
 
