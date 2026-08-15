@@ -1,0 +1,23 @@
+src-tauri/src/commands/hooks.rs
+  s_fb5f09b8e5a8ff::t_1c12e076e7f491 8,260-274,295-303
+src-tauri/src/agents/codex.rs
+  s_fb5f09b8e5a8ff::t_d21a11018a24f4 416-447
+  s_fb5f09b8e5a8ff::t_aae4b928cdbebb 137-140,142-147
+  s_fb5f09b8e5a8ff::t_3b247bae107305 1-2,102,141,208,241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3157605aed2d65a728e64d44da38a5725c160252",
+  "prompts": {},
+  "sessions": {
+    "s_fb5f09b8e5a8ff": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8cde-8d16-7280-86b3-eaf794450454",
+        "model": "gpt-5.5"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

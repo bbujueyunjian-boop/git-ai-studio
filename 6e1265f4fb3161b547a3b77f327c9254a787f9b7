@@ -1,0 +1,19 @@
+src-tauri/tauri.conf.json
+  s_018d6bb2ccadbf::t_1c9d0123d96ba5 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6e1265f4fb3161b547a3b77f327c9254a787f9b7",
+  "prompts": {},
+  "sessions": {
+    "s_018d6bb2ccadbf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86c9eadf-6881-4ded-8139-2e46e5d8014c",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

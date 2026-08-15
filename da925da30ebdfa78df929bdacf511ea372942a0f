@@ -1,0 +1,57 @@
+src-tauri/src/agent_cli.rs
+  s_4e7d1421efec4b::t_1ac2ac14e0275e 58-59,61-63,65-66,71-73,81-82,86
+src/pages/Diagnostic.tsx
+  s_4e7d1421efec4b::t_ad5a2356cd287c 228-230
+  s_4e7d1421efec4b::t_dee555a655b3dc 33
+src-tauri/src/commands/agent_cli.rs
+  s_4e7d1421efec4b::t_2d57cca604ea90 33,38-39
+  s_4e7d1421efec4b::t_57251e8faaacac 49,53
+  s_4e7d1421efec4b::t_48695c6e73aa28 135,141
+  s_4e7d1421efec4b::t_2c55cd2d252be9 94-95,101
+  s_4e7d1421efec4b::t_9ee83e90a2ce6e 31-32,34-37,40-42
+  s_4e7d1421efec4b::t_e00fe4af08aef5 43-44
+src/components/AgentCliInstaller.tsx
+  s_4e7d1421efec4b::t_de153334deed9c 166-167,170
+  s_4e7d1421efec4b::t_34f3a4cf818a64 45-46,48-51,53-57,59
+  s_4e7d1421efec4b::t_ce351c56d75759 8-14
+  s_4e7d1421efec4b::t_1aff4e394f7502 43-44,47,52,58,60
+src-tauri/src/lib.rs
+  s_4e7d1421efec4b::t_798b9e144bda93 19
+  s_4e7d1421efec4b::t_5937e716d076c2 55-58
+  s_4e7d1421efec4b::t_3c55933a58e843 176
+src-tauri/src/env_path.rs
+  s_4e7d1421efec4b::t_3228d5335dc360 7-8,12-18,20-24,27-31,35-39,41-61,64-73,75-83,86-93,95-96,98-135,138-141,148-149,152-179,181-188,194-200,231,266,269-278,281,284-286,289,292-305
+  s_4e7d1421efec4b::t_816e6b03211c09 1-6,9-11,19,25-26,32-34,40,62-63,74,84-85,94,97,136-137,142-146,150-151,180,189-193,201-230,232-265,267-268,279-280,282-283,287-288,290-291,306-336
+  s_4e7d1421efec4b::t_d6c90d199fc83f 147
+src-tauri/Cargo.toml
+  s_4e7d1421efec4b::t_5e08f3b1b40f17 47-50
+src-tauri/src/git_ai/binary.rs
+  s_4e7d1421efec4b::t_b2d03b614afad4 14
+  s_4e7d1421efec4b::t_1795e0163ce5b1 32-36
+src/i18n/locales/en.json
+  s_4e7d1421efec4b::t_3360e45f501bde 727
+src/i18n/locales/zh-CN.json
+  s_4e7d1421efec4b::t_2d47a98d55fbfe 727
+src/lib/api.ts
+  s_4e7d1421efec4b::t_ce936f6ea8b15e 108-109
+src-tauri/Cargo.lock
+  ai_agent 1603
+src-tauri/src/proc.rs
+  s_4e7d1421efec4b::t_fc8801b32e84bf 62-75,87,95,110-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "da925da30ebdfa78df929bdacf511ea372942a0f",
+  "prompts": {},
+  "sessions": {
+    "s_4e7d1421efec4b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4f7cd6e6-b2b2-4dab-96e1-f920b9d8cbe6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

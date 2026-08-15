@@ -1,0 +1,41 @@
+src/lib/chartColors.ts
+  s_018d6bb2ccadbf::t_845f48c6657204 2,8
+src/components/Layout/Rail.tsx
+  s_018d6bb2ccadbf::t_b8af6b4002b1b9 51,54-55,61-63
+  s_018d6bb2ccadbf::t_060b272367173c 15
+  s_018d6bb2ccadbf::t_035ee7f2c5da2a 10-12
+  s_018d6bb2ccadbf::t_58fb8271311337 17,20-23
+  s_018d6bb2ccadbf::t_b164fae0d84b25 81
+  s_018d6bb2ccadbf::t_47be307ac09e62 131,135,142
+  s_018d6bb2ccadbf::t_e026ed1fb96f8e 132,136-141
+src/App.css
+  s_018d6bb2ccadbf::t_1218f4566ab07d 50-52
+  s_018d6bb2ccadbf::t_e3b49c2110309a 121-139,146-153
+  s_018d6bb2ccadbf::t_463d449086fb36 53,58-62
+  s_018d6bb2ccadbf::t_f213ece4716cad 140-144
+  s_018d6bb2ccadbf::t_5272c9540faa71 158-176,182-189
+  s_018d6bb2ccadbf::t_039a1039431893 177-181
+src/components/Layout/TopBar.tsx
+  s_018d6bb2ccadbf::t_2ca922004f6195 89
+  s_018d6bb2ccadbf::t_0686536416bc6e 180
+src/pages/Dashboard.tsx
+  s_018d6bb2ccadbf::t_914bcf4d737997 503-504
+  s_018d6bb2ccadbf::t_116ce31bb33dec 610,612
+  s_018d6bb2ccadbf::t_41d178230d4514 365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "948229144aa5dd5c57a4e2cbbfe080101a0b6be5",
+  "prompts": {},
+  "sessions": {
+    "s_018d6bb2ccadbf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86c9eadf-6881-4ded-8139-2e46e5d8014c",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

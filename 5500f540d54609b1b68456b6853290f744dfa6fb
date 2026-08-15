@@ -1,0 +1,25 @@
+src/i18n/locales/en.json
+  s_ac3128deb5d1cd::t_2374c93989c4bc 644-645
+src/i18n/locales/zh-CN.json
+  s_ac3128deb5d1cd::t_51b05eec41141c 644-645
+src/pages/Diagnostic.tsx
+  s_ac3128deb5d1cd::t_57fdbc561a7b2c 36
+  s_ac3128deb5d1cd::t_3fb978ffa6f538 631-632
+  s_ac3128deb5d1cd::t_fdb1d811859d10 385-391
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5500f540d54609b1b68456b6853290f744dfa6fb",
+  "prompts": {},
+  "sessions": {
+    "s_ac3128deb5d1cd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fccf4c6-122d-4995-8a62-7c44bd077ea4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,32 @@
+src/i18n/locales/zh-CN.json
+  s_ac3128deb5d1cd::t_fc6b3c7b90c771 733-737,765
+  s_ac3128deb5d1cd::t_26d62a1f39eb01 693-732,738-764,766-793
+src/i18n/locales/en.json
+  s_ac3128deb5d1cd::t_fc6b3c7b90c771 733-737,765
+  s_ac3128deb5d1cd::t_26d62a1f39eb01 693-732,738-764,766-793
+src/components/RepoSetupGuide.tsx
+  s_ac3128deb5d1cd::t_77efbd5f346dd4 71
+  s_ac3128deb5d1cd::t_6653f959e86b8c 592
+  s_ac3128deb5d1cd::t_3ee85ae3140883 359
+  s_ac3128deb5d1cd::t_c3eaf5e1347185 362-363,366-367,370-371,374-375,575,589,631,633,636,638,641,643
+  s_ac3128deb5d1cd::t_1846511033d8e9 54-59,62-67
+  s_ac3128deb5d1cd::t_327fdbba49b647 129,135-136,145,149-150,155-157,188-189,259,275,306,314,326,336,344,353,357,379,398,402,410,413,421,424,432,465,468,471,483,487,489,503,508,515,522,539,563,567,578,600,625,651,654,661,668,674,677,691-693,704
+  s_ac3128deb5d1cd::t_9fe6edac5ef8c6 439,607
+  s_ac3128deb5d1cd::t_72ae09f3a5eaed 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ea40288622d3377a6e21595e15f8a6ac97962cbb",
+  "prompts": {},
+  "sessions": {
+    "s_ac3128deb5d1cd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fccf4c6-122d-4995-8a62-7c44bd077ea4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

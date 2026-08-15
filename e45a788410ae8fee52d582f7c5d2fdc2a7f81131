@@ -1,0 +1,27 @@
+package.json
+  s_4e7d1421efec4b::t_87237d9573dd86 4
+src-tauri/Cargo.lock
+  ai_agent 1570
+src-tauri/Cargo.toml
+  s_4e7d1421efec4b::t_a0e1372338a455 3
+src-tauri/tauri.conf.json
+  s_4e7d1421efec4b::t_e66d1b71917617 4
+CHANGELOG.md
+  s_4e7d1421efec4b::t_a76e67588df1cf 11-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e45a788410ae8fee52d582f7c5d2fdc2a7f81131",
+  "prompts": {},
+  "sessions": {
+    "s_4e7d1421efec4b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4f7cd6e6-b2b2-4dab-96e1-f920b9d8cbe6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

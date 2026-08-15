@@ -1,0 +1,55 @@
+src-tauri/src/agent_cli.rs
+  s_c8b677cd3598b2::t_6da295a52aa476 169-171,180-183
+  s_c8b677cd3598b2::t_509652b1d67bd1 1-168,172-179,184-187
+src-tauri/src/commands/agent_cli.rs
+  s_c8b677cd3598b2::t_8682977f82c815 1-138
+src/pages/Diagnostic.tsx
+  s_c8b677cd3598b2::t_8a97d81ae9377c 20
+  s_c8b677cd3598b2::t_be238e33decd22 646-648
+src/i18n/locales/zh-CN.json
+  s_c8b677cd3598b2::t_40279e0ba030b9 721-730,735-749
+  s_c8b677cd3598b2::t_78ff791ac6f9ea 731-734
+src/lib/api.ts
+  s_c8b677cd3598b2::t_54966c623650eb 107-115
+  s_c8b677cd3598b2::t_22d1881db19e7b 39
+  s_c8b677cd3598b2::t_edf4089ca3defe 3
+src-tauri/src/lib.rs
+  s_c8b677cd3598b2::t_79e2cfd802eca6 13
+  s_c8b677cd3598b2::t_8ff6c402308cf8 171-174
+src-tauri/src/commands/mod.rs
+  s_c8b677cd3598b2::t_2f13534510ab94 1
+src-tauri/src/commands/install.rs
+  s_c8b677cd3598b2::t_b5b064b95aedb3 92,96
+  s_c8b677cd3598b2::t_33f117d105e78d 110
+  s_c8b677cd3598b2::t_5c42490afb562e 76
+src/__tests__/agentCli.contract.test.ts
+  s_c8b677cd3598b2::t_8d9f451377ea60 1-29
+src/i18n/locales/en.json
+  s_c8b677cd3598b2::t_92e5a19b765cf1 721-730,735-749
+  s_c8b677cd3598b2::t_ddf103c854ad53 731-734
+src/lib/types.ts
+  s_c8b677cd3598b2::t_eecea3824ec958 136-145
+src/components/AgentCliInstaller.tsx
+  s_c8b677cd3598b2::t_c6d01aea23b7b7 280,285-290
+  s_c8b677cd3598b2::t_ecc488713a3956 16-18
+  s_c8b677cd3598b2::t_8e905aa155eb97 1-15,19-127,129-174,178-279,281-284,291-297,312-313,317,321-362,383-385
+  s_c8b677cd3598b2::t_fa48fbe51f80de 363-382
+  s_c8b677cd3598b2::t_9d9f1f0812e84b 298-311
+  s_c8b677cd3598b2::t_02f0f12da4051b 128,175-177,314-316,318-320
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f8e33fedf5fd9adc62b199508461af4fc3b94746",
+  "prompts": {},
+  "sessions": {
+    "s_c8b677cd3598b2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a55c63ec-12ee-40be-8977-00b387b16fd4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

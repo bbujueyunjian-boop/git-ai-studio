@@ -1,0 +1,19 @@
+CHANGELOG.md
+  s_4e7d1421efec4b::t_9eabf40955a670 17-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a655cae315e9d543dd0a71b84e46bf010e7c38dd",
+  "prompts": {},
+  "sessions": {
+    "s_4e7d1421efec4b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4f7cd6e6-b2b2-4dab-96e1-f920b9d8cbe6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

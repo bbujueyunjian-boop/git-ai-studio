@@ -1,0 +1,26 @@
+src/i18n/locales/en.json
+  s_ac3128deb5d1cd::t_d44de498876806 538
+src/pages/People.tsx
+  s_ac3128deb5d1cd::t_8a67908637e625 31
+  s_ac3128deb5d1cd::t_33d42738ef3985 50
+  s_ac3128deb5d1cd::t_c9110c109abc9b 221,242
+  s_ac3128deb5d1cd::t_ef2de18c04a34f 224-241,243-245
+src/i18n/locales/zh-CN.json
+  s_ac3128deb5d1cd::t_05cd433a2a9093 538
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e068a32f7d523329c1f31536ae9348733f2542e4",
+  "prompts": {},
+  "sessions": {
+    "s_ac3128deb5d1cd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fccf4c6-122d-4995-8a62-7c44bd077ea4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

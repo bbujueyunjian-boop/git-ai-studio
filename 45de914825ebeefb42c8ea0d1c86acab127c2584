@@ -1,0 +1,86 @@
+src/__tests__/notes_blame_link.contract.test.ts
+  s_ac3128deb5d1cd::t_f7a40cd618f382 1,3-6
+CLAUDE.md
+  s_ac3128deb5d1cd::t_065e8780b8b7e6 7
+  s_ac3128deb5d1cd::t_cb85dbb115aa5e 17
+src/lib/useRepoChanged.ts
+  s_ac3128deb5d1cd::t_6783916d5c72d5 17-19,26
+src/pages/Notes.tsx
+  s_ac3128deb5d1cd::t_05c0e95282f70a 158
+src/lib/queryKeys.ts
+  s_ac3128deb5d1cd::t_856a9ad03d59b6 55-56
+  s_ac3128deb5d1cd::t_a7bbb8e2a5fb88 41-42
+  s_ac3128deb5d1cd::t_320d3d90c15301 67
+  s_ac3128deb5d1cd::t_b70d6f79f0a8cb 61-62
+docs/adr/0013-blame-into-commit-attribution.md
+  s_ac3128deb5d1cd::t_faf7f94b766ca3 1-26,28-39,41-46,48-52,54-55
+  s_ac3128deb5d1cd::t_31735ffa1d0d93 40,47,53
+  s_ac3128deb5d1cd::t_90f74bf33b8dfe 27
+src/i18n/locales/zh-CN.json
+  s_ac3128deb5d1cd::t_ac32a8cb247de0 329-333
+src/i18n/locales/en.json
+  s_ac3128deb5d1cd::t_750c40c29c9e91 329-333
+src/pages/Stats.tsx
+  s_ac3128deb5d1cd::t_92ef22b502d4a8 312
+  s_ac3128deb5d1cd::t_0747ed0c63816f 107,111-113
+  s_ac3128deb5d1cd::t_3d6e2e5a163ad2 294
+  s_ac3128deb5d1cd::t_ff5ccb5217be06 108-110
+  s_ac3128deb5d1cd::t_fb22e7d7acf520 321-322,325-331
+  s_ac3128deb5d1cd::t_aad29240934bae 578-588,600-601,603-604,614-615,620-621,623,625
+  s_ac3128deb5d1cd::t_4cdb08d02b18b5 39
+  s_ac3128deb5d1cd::t_76c1981ebf504a 663-664
+  s_ac3128deb5d1cd::t_488e9f9d7c5107 54
+  s_ac3128deb5d1cd::t_cd6ed466de5bc5 311
+  s_ac3128deb5d1cd::t_3c6c6f0176a07e 32,37
+src/pages/People.tsx
+  s_ac3128deb5d1cd::t_b44f731147ad3f 28
+src/components/NoteDetail.tsx
+  s_ac3128deb5d1cd::t_ffc0642a1b64be 304
+  s_ac3128deb5d1cd::t_897092c094c64a 42,44-45
+  s_ac3128deb5d1cd::t_e19cf13aa37d96 221
+  s_ac3128deb5d1cd::t_b37ccb0577b13b 85
+  s_ac3128deb5d1cd::t_e75be5d5763c76 280-283
+  s_ac3128deb5d1cd::t_2d2335a83bc14c 174,180,193,207,213
+  s_ac3128deb5d1cd::t_f1f39b57b4bdef 287-290
+src/__tests__/blameLines.test.ts
+  s_ac3128deb5d1cd::t_e9c08f5b46b143 1-5,7-89
+  s_ac3128deb5d1cd::t_e6bb7304e8a9f6 6
+  s_ac3128deb5d1cd::t_a99ead61daadd7 90-108
+src/pages/Checkpoints.tsx
+  s_ac3128deb5d1cd::t_275c0b2f506f5f 134-135
+src/__tests__/router_query.test.ts
+  s_ac3128deb5d1cd::t_1c98b69117db71 13
+  s_ac3128deb5d1cd::t_8807942c62881c 8-9,37-40,46-48,50,53-59,63-65,71-72,76-78,90-93
+  s_ac3128deb5d1cd::t_b3ee35359a1a0a 96-124
+src/components/FileDegradedCard.tsx
+  s_ac3128deb5d1cd::t_8e5339ab14302b 1-80
+src/App.tsx
+  s_ac3128deb5d1cd::t_ba67b73a4e9142 1
+docs/adr/README.md
+  s_ac3128deb5d1cd::t_51217090957553 23
+src/components/Layout/Rail.tsx
+  s_ac3128deb5d1cd::t_4a868fa506d4c8 49
+  s_ac3128deb5d1cd::t_4aece11d57157a 6
+src/lib/blameLines.ts
+  s_ac3128deb5d1cd::t_c625acc04b41cf 56-71
+  s_ac3128deb5d1cd::t_8a52cca457b8eb 1-55
+src/components/MetricCard.tsx
+  s_ac3128deb5d1cd::t_428aafc915bc75 19-24
+  s_ac3128deb5d1cd::t_a3d3766ebd161e 1-18,25-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "45de914825ebeefb42c8ea0d1c86acab127c2584",
+  "prompts": {},
+  "sessions": {
+    "s_ac3128deb5d1cd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fccf4c6-122d-4995-8a62-7c44bd077ea4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

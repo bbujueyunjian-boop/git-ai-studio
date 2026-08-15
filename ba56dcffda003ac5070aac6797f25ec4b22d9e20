@@ -1,0 +1,19 @@
+src/pages/Install.tsx
+  s_fb5f09b8e5a8ff::t_f5d01e07fe6d34 308
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ba56dcffda003ac5070aac6797f25ec4b22d9e20",
+  "prompts": {},
+  "sessions": {
+    "s_fb5f09b8e5a8ff": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8cde-8d16-7280-86b3-eaf794450454",
+        "model": "gpt-5.5"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

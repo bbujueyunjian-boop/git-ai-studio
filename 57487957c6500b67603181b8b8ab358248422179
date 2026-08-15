@@ -1,0 +1,29 @@
+src/components/NoteDetail.tsx
+  s_ac3128deb5d1cd::t_eb34e5bed0bd05 76-79
+  s_ac3128deb5d1cd::t_ab28f17577d7d4 182-193
+  s_ac3128deb5d1cd::t_d4d337a8ff1aaa 80-86
+src/i18n/locales/zh-CN.json
+  s_ac3128deb5d1cd::t_b9978f088f4cad 347-353
+src/pages/Notes.tsx
+  s_ac3128deb5d1cd::t_f5bc244750fbf5 127
+  s_ac3128deb5d1cd::t_7aa8fa770f7942 119
+  s_ac3128deb5d1cd::t_3517db1774d825 149
+src/i18n/locales/en.json
+  s_ac3128deb5d1cd::t_47c7d1127b92ec 347-353
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "57487957c6500b67603181b8b8ab358248422179",
+  "prompts": {},
+  "sessions": {
+    "s_ac3128deb5d1cd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fccf4c6-122d-4995-8a62-7c44bd077ea4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+src/i18n/locales/zh-CN.json
+  s_3859b1d7acd818::t_4000648cfeeeb5 1166-1198
+src/i18n/locales/en.json
+  s_3859b1d7acd818::t_d115abe02da50a 1166-1198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f91eba4696104a97e17e7556bd561db2cac87e58",
+  "prompts": {},
+  "sessions": {
+    "s_3859b1d7acd818": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eefc459e-8280-4040-b5db-8df545471023",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

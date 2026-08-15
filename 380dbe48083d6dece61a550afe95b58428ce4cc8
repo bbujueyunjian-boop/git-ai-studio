@@ -1,0 +1,29 @@
+src/pages/Diagnostic.tsx
+  s_ac3128deb5d1cd::t_4a000d3d11df5c 302
+  s_ac3128deb5d1cd::t_93d9d9b56232a4 167,215,233,239,243-247,258,261-265,301,309,330,373,375-376,379-383,389,393,398,414
+  s_ac3128deb5d1cd::t_e0b6cf9461c9c5 101-105,107-114,118-122,124
+  s_ac3128deb5d1cd::t_ba84a775fec10e 217-218,236-238,250-253,316-317,337-339,345-349,877,925-927,967,1014,1028
+  s_ac3128deb5d1cd::t_7834251d293886 351
+  s_ac3128deb5d1cd::t_7b0c075913608a 677-678,688,697,708-709,712,842,857,920,942,957-958,981,996,1007,1027,1033
+  s_ac3128deb5d1cd::t_60c2ab4793c8da 142-145,154,156
+src/i18n/locales/zh-CN.json
+  s_ac3128deb5d1cd::t_ada7c8f873e9ff 10-11,53-55,61-68,710-712,759-830
+src/i18n/locales/en.json
+  s_ac3128deb5d1cd::t_ada7c8f873e9ff 10-11,53-55,61-68,710-712,759-830
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "380dbe48083d6dece61a550afe95b58428ce4cc8",
+  "prompts": {},
+  "sessions": {
+    "s_ac3128deb5d1cd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fccf4c6-122d-4995-8a62-7c44bd077ea4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

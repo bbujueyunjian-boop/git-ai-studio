@@ -1,0 +1,28 @@
+src-tauri/src/paths.rs
+  s_ac3128deb5d1cd::t_5f90a23c10094a 57-61
+src-tauri/src/agents/mod.rs
+  s_ac3128deb5d1cd::t_e0f304aaa32927 9-10,20,22,30-31,41-42
+  s_ac3128deb5d1cd::t_4e6ca5f4f96b11 83-84
+  s_ac3128deb5d1cd::t_2ed79099763d48 148-177
+src-tauri/src/agents/gemini.rs
+  s_ac3128deb5d1cd::t_934711f183c02a 1-180,184-188,192-193
+  s_ac3128deb5d1cd::t_a7d9004128eb35 181-183,189-191
+src-tauri/src/agents/pi.rs
+  s_ac3128deb5d1cd::t_b2919ae0aa1793 1-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1b906caada3fee39742e5a977f2a8ffa2a95d86e",
+  "prompts": {},
+  "sessions": {
+    "s_ac3128deb5d1cd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fccf4c6-122d-4995-8a62-7c44bd077ea4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

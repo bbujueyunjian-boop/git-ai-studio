@@ -1,0 +1,21 @@
+src/main.tsx
+  s_ac3128deb5d1cd::t_a33dfbce099bd5 41-43
+src/App.css
+  s_ac3128deb5d1cd::t_0ff312b77aa984 12-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e182be43847ff59a50df1a571f6ca3e368297768",
+  "prompts": {},
+  "sessions": {
+    "s_ac3128deb5d1cd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fccf4c6-122d-4995-8a62-7c44bd077ea4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

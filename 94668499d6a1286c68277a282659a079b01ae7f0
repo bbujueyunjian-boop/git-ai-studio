@@ -1,0 +1,26 @@
+src/pages/Manual.tsx
+  s_ac3128deb5d1cd::t_3c2e604505d871 15-23
+  s_ac3128deb5d1cd::t_cf08d689fd2bcc 31,36,40-47
+  s_ac3128deb5d1cd::t_a6c56d1f2e5055 172-229
+  s_ac3128deb5d1cd::t_4aa979aa98fa4e 110
+src/i18n/locales/zh-CN.json
+  s_ac3128deb5d1cd::t_e22c3d2aaf7be1 701,704-774
+src/i18n/locales/en.json
+  s_ac3128deb5d1cd::t_e22c3d2aaf7be1 701,704-774
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "94668499d6a1286c68277a282659a079b01ae7f0",
+  "prompts": {},
+  "sessions": {
+    "s_ac3128deb5d1cd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fccf4c6-122d-4995-8a62-7c44bd077ea4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

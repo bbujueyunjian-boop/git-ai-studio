@@ -1,0 +1,28 @@
+src/components/InkPetWindow.tsx
+  s_ac3128deb5d1cd::t_ea2c54664472aa 4
+  s_ac3128deb5d1cd::t_abe1d7fb0167d4 24
+  s_ac3128deb5d1cd::t_a333fa0f762125 89-91,96-98,105-110
+src/components/InkPetController.tsx
+  s_ac3128deb5d1cd::t_82fd6a589b32f4 204
+  s_ac3128deb5d1cd::t_bc24e47e3d0915 13
+  s_ac3128deb5d1cd::t_407e9ed9162334 241
+src/lib/petState.ts
+  s_ac3128deb5d1cd::t_41542e6771cdf9 68-70
+  s_ac3128deb5d1cd::t_7a2f2f4af3389e 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "526ab4cbee0c0fd12ed2a59b416cdad0418eb9be",
+  "prompts": {},
+  "sessions": {
+    "s_ac3128deb5d1cd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fccf4c6-122d-4995-8a62-7c44bd077ea4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

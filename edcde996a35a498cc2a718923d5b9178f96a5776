@@ -1,0 +1,23 @@
+docs/adr/0014-single-instance-guard.md
+  s_461b632eecbfb6::t_ea27e2f1b456dd 1-145
+docs/adr/README.md
+  s_461b632eecbfb6::t_01f5cc073d41db 24
+CLAUDE.md
+  s_461b632eecbfb6::t_f85c20921abd7e 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "edcde996a35a498cc2a718923d5b9178f96a5776",
+  "prompts": {},
+  "sessions": {
+    "s_461b632eecbfb6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b58253dd-9132-461a-a5d3-5151266f4761",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

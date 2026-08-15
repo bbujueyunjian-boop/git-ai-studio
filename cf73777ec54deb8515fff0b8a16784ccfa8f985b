@@ -1,0 +1,31 @@
+src/i18n/locales/en.json
+  s_ac3128deb5d1cd::t_afffe7221d6c69 946-975,977-1053
+  s_ac3128deb5d1cd::t_432dbbe7e4f364 976
+src/i18n/locales/zh-CN.json
+  s_ac3128deb5d1cd::t_afffe7221d6c69 946-975,977-1053
+  s_ac3128deb5d1cd::t_432dbbe7e4f364 976
+src/pages/Settings.tsx
+  s_ac3128deb5d1cd::t_b8124d13f8fc5e 180,189,198,208,219,257,298,357,363
+  s_ac3128deb5d1cd::t_bfa9cbd09ccbae 469,473,476,479,507,514,517,528,537,547,556
+  s_ac3128deb5d1cd::t_7ee18841c3800d 549
+  s_ac3128deb5d1cd::t_21465209c42106 448,450,452,454,458,461
+  s_ac3128deb5d1cd::t_1f5e0f60c4f981 69-72
+  s_ac3128deb5d1cd::t_f1a034e624421e 112-116,118-119,133-135,137-138,150-152,154-155,182-183,191-192,200-201,210-213,221-224,233-235,238-241,316-318,320-321,338-339,345-346,482,520,530-531,550,718-720,816-818,914-915,944-948,965
+  s_ac3128deb5d1cd::t_e9914a80f7756c 441-442,681,683,688,706,745,785,810,820,827,841,843,853,913,921,931,942,955,964,972,981,984,1028,1196-1198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "cf73777ec54deb8515fff0b8a16784ccfa8f985b",
+  "prompts": {},
+  "sessions": {
+    "s_ac3128deb5d1cd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fccf4c6-122d-4995-8a62-7c44bd077ea4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}

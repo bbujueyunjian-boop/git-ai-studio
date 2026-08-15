@@ -1,0 +1,21 @@
+src-tauri/Cargo.toml
+  s_461b632eecbfb6::t_aa4676432b23a6 47-51
+src-tauri/src/lib.rs
+  s_461b632eecbfb6::t_ce3e0bd961f67c 64-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a1f5b0719f9b1f970c3738e29945b0979d9e9184",
+  "prompts": {},
+  "sessions": {
+    "s_461b632eecbfb6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b58253dd-9132-461a-a5d3-5151266f4761",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}
