@@ -1,8 +1,8 @@
 // 单 commit 改动文件面板(数据容器 + 纯展示)。Stats 详情区与 Blame 左栏共用。
 //
 // # 数据口径
-// - 改动文件来自 `list_changed_files_in_commit`(git diff status code 透传 A/M/D/R/C/T/...)
-// - 每文件 AI 行数来自 `list_ai_lines_in_commit`,同文件多段累加;**只显真实 AI 行数,不编造分母**
+// - 改动文件与三桶来自 `list_changed_files_in_commit`；后端先把 note 范围与 diff 新增行求交
+// - 文件 AI 占比只看本 commit 新增行；删除行单列，不进入分母
 //
 // # 抽象边界
 // onOpenFile 由调用方注入(Stats 开弹窗 / Blame 在主区渲染整文件逐行 blame);
@@ -10,12 +10,14 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { listAiLinesInCommit, listChangedFilesInCommit } from "../lib/api";
+import { listChangedFilesInCommit } from "../lib/api";
 import { cn } from "../lib/cn";
-import type { AiLinesResult, ChangedFile, ChangedFilesResult } from "../lib/types";
+import { deriveFileAttributionDisplay } from "../lib/fileAttribution";
+import { formatInt, formatPercent } from "../lib/formulas";
+import type { ChangedFile, ChangedFilesResult, FileLineStats } from "../lib/types";
+import { Tooltip } from "./ui/TooltipBubble";
 
 export function ChangedFilesPanel({
   sha,
@@ -33,23 +35,6 @@ export function ChangedFilesPanel({
     queryFn: () => listChangedFilesInCommit(sha),
     staleTime: 60_000,
   });
-  const aiLinesQ = useQuery<AiLinesResult>({
-    queryKey: ["ai_lines_in_commit", sha],
-    queryFn: () => listAiLinesInCommit(sha),
-    staleTime: 60_000,
-  });
-
-  // file path → AI 行数(同文件多段累加)。真实值,不派生分母。
-  const aiLinesByFile = useMemo(() => {
-    const m = new Map<string, number>();
-    if (aiLinesQ.data?.status === "ok") {
-      for (const ref of aiLinesQ.data.lines) {
-        m.set(ref.file, (m.get(ref.file) ?? 0) + (ref.line_end - ref.line_start + 1));
-      }
-    }
-    return m;
-  }, [aiLinesQ.data]);
-
   const data = changedQ.data;
   return (
     <div>
@@ -60,6 +45,9 @@ export function ChangedFilesPanel({
             {data.files.length}
           </span>
         )}
+      </div>
+      <div className="mb-2 text-[10px] leading-relaxed text-muted-foreground">
+        {t("changedFiles.aiShareFormula")}
       </div>
       {changedQ.isLoading ? (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -81,7 +69,7 @@ export function ChangedFilesPanel({
       ) : (
         <ChangedFilesList
           files={data.files}
-          aiLinesByFile={aiLinesByFile}
+          isMerge={data.is_merge}
           onOpenFile={onOpenFile}
           selectedFile={selectedFile}
         />
@@ -92,12 +80,12 @@ export function ChangedFilesPanel({
 
 function ChangedFilesList({
   files,
-  aiLinesByFile,
+  isMerge,
   onOpenFile,
   selectedFile,
 }: {
   files: ChangedFile[];
-  aiLinesByFile: Map<string, number>;
+  isMerge: boolean;
   onOpenFile: (file: string) => void;
   selectedFile?: string;
 }) {
@@ -109,43 +97,185 @@ function ChangedFilesList({
   return (
     <ul className="space-y-0.5 text-xs">
       {files.map((f) => {
-        const aiCount = aiLinesByFile.get(f.path) ?? 0;
+        const attribution = deriveFileAttributionDisplay(f, isMerge);
         const statusLabel = statusLabelMap[f.status] ?? f.status;
         const disabled = f.status === "D";
         const active = selectedFile === f.path;
-        return (
-          <li key={`${f.status}:${f.path}`}>
-            <button
-              type="button"
-              onClick={() => !disabled && onOpenFile(f.path)}
-              disabled={disabled}
-              title={
-                disabled ? t("changedFiles.deletedFileTitle") : t("changedFiles.viewBlameTitle")
-              }
-              className={cn(
-                "group flex w-full items-center gap-2 rounded-sm px-1.5 py-1 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent",
-                active ? "bg-primary/10" : "hover:bg-muted",
-              )}
-            >
-              <StatusBadge status={f.status} label={statusLabel} />
-              <code
-                className={cn(
-                  "min-w-0 flex-1 truncate font-mono text-[11px] group-hover:text-foreground",
-                  active ? "text-primary" : "text-foreground/90",
-                )}
-              >
-                {f.path}
-              </code>
-              {aiCount > 0 && (
-                <span className="shrink-0 rounded-sm bg-ai/10 px-1.5 py-0.5 text-[10px] font-medium text-ai ring-1 ring-inset ring-ai/30">
-                  {t("changedFiles.aiLineChipTemplate", { n: aiCount })}
+        const detailedStats =
+          attribution.kind === "measured" || attribution.kind === "unattributed"
+            ? attribution.stats
+            : null;
+        const row = (
+          <button
+            type="button"
+            onClick={() => !disabled && onOpenFile(f.path)}
+            disabled={disabled}
+            title={
+              detailedStats
+                ? undefined
+                : disabled
+                  ? t("changedFiles.deletedFileTitle")
+                  : t("changedFiles.viewBlameTitle")
+            }
+            className={cn(
+              "group flex w-full items-start gap-2 rounded-sm px-1.5 py-1 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent",
+              active ? "bg-primary/10" : "hover:bg-muted",
+            )}
+          >
+            <StatusBadge status={f.status} label={statusLabel} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <code
+                  className={cn(
+                    "min-w-0 flex-1 truncate font-mono text-[11px] group-hover:text-foreground",
+                    active ? "text-primary" : "text-foreground/90",
+                  )}
+                >
+                  {f.path}
+                </code>
+                <FileAttributionMetric display={attribution} />
+              </div>
+              {detailedStats && <FileAttributionBar stats={detailedStats} />}
+              {detailedStats && (
+                <span className="sr-only">
+                  {t("changedFiles.bucketDetailsTemplate", {
+                    human: formatInt(detailedStats.human_additions),
+                    unknown: formatInt(detailedStats.unknown_additions),
+                    ai: formatInt(detailedStats.ai_additions),
+                  })}
+                  .{" "}
+                  {t("changedFiles.diffTemplate", {
+                    added: formatInt(detailedStats.additions),
+                    deleted: formatInt(detailedStats.deletions),
+                  })}
                 </span>
               )}
-            </button>
+            </div>
+          </button>
+        );
+        return (
+          <li key={`${f.status}:${f.path}`}>
+            {detailedStats ? (
+              <Tooltip side="left" content={<FileAttributionDetails stats={detailedStats} />}>
+                {row}
+              </Tooltip>
+            ) : (
+              row
+            )}
           </li>
         );
       })}
     </ul>
+  );
+}
+
+function FileAttributionMetric({
+  display,
+}: {
+  display: ReturnType<typeof deriveFileAttributionDisplay>;
+}) {
+  const { t } = useTranslation();
+  if (display.kind === "merge") {
+    return (
+      <MetricText title={t("changedFiles.mergeNotApplicable")}>
+        {t("changedFiles.mergeNotApplicableShort")}
+      </MetricText>
+    );
+  }
+  if (display.kind === "binary") {
+    return (
+      <MetricText title={t("changedFiles.binaryNotApplicable")}>
+        {t("changedFiles.binaryNotApplicableShort")}
+      </MetricText>
+    );
+  }
+  if (display.kind === "deletions_only") {
+    const label = t("changedFiles.deletionsOnlyTemplate", {
+      n: formatInt(display.deletions),
+    });
+    return <MetricText title={label}>{label}</MetricText>;
+  }
+  if (display.kind === "no_additions") {
+    return <MetricText>{t("changedFiles.noAdditions")}</MetricText>;
+  }
+
+  const stats = display.stats;
+  const label =
+    display.kind === "unattributed"
+      ? t("changedFiles.unattributedTemplate", { n: formatInt(stats.unknown_additions) })
+      : t("changedFiles.aiShareTemplate", {
+          percent: formatPercent(display.aiRatio),
+          ai: formatInt(stats.ai_additions),
+          total: formatInt(stats.additions),
+        });
+  return (
+    <span
+      title={label}
+      className={cn(
+        "max-w-[140px] shrink-0 truncate rounded-sm px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset",
+        display.kind === "unattributed"
+          ? "bg-muted text-muted-foreground ring-border"
+          : "bg-ai/10 text-ai ring-ai/30",
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+function FileAttributionDetails({ stats }: { stats: FileLineStats }) {
+  const { t } = useTranslation();
+  return (
+    <div className="space-y-0.5 whitespace-normal break-words">
+      <div>
+        {t("changedFiles.bucketDetailsTemplate", {
+          human: formatInt(stats.human_additions),
+          unknown: formatInt(stats.unknown_additions),
+          ai: formatInt(stats.ai_additions),
+        })}
+      </div>
+      <div className="opacity-80">
+        {t("changedFiles.diffTemplate", {
+          added: formatInt(stats.additions),
+          deleted: formatInt(stats.deletions),
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MetricText({ children, title }: { children: React.ReactNode; title?: string }) {
+  return (
+    <span
+      className="max-w-[96px] shrink-0 truncate text-[10px] text-muted-foreground"
+      title={title}
+    >
+      {children}
+    </span>
+  );
+}
+
+function FileAttributionBar({ stats }: { stats: FileLineStats }) {
+  const segments = [
+    { key: "human", value: stats.human_additions, className: "bg-human" },
+    { key: "unknown", value: stats.unknown_additions, className: "bg-unknown" },
+    { key: "ai", value: stats.ai_additions, className: "bg-ai" },
+  ];
+  return (
+    <div
+      aria-hidden="true"
+      className="mt-1 flex h-1 w-full overflow-hidden rounded-full bg-secondary"
+    >
+      {segments.map((segment) =>
+        segment.value > 0 ? (
+          <span
+            key={segment.key}
+            className={cn("h-full", segment.className)}
+            style={{ width: `${(segment.value / stats.additions) * 100}%` }}
+          />
+        ) : null,
+      )}
+    </div>
   );
 }
 

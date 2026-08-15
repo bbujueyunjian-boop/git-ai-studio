@@ -103,6 +103,7 @@
       "noUserEmail": "未配置 git user.email,「只看我」无法过滤"
     },
     "summary": {
+      "commitCount": "{{count}} 个 commit",
       "truncatedTitle": "可能有更老 commit 未纳入",
       "truncatedBadge": "(达上限 {{limit}})",
       "failedCount": "{{count}} 条采集失败"
@@ -113,12 +114,55 @@
       "failedNotice": "该 commit 的 git-ai stats 采集失败,下方数字为 0 桶占位,不是真实数据。刷新或查看 Diagnostic。",
       "bucketBreakdown": "人 {{human}} · 未归因 {{unknown}} · AI {{ai}}"
     },
-    "footer": "本机解析,不上传 · 缓存 {{seconds}}s · 每文件只显真实 AI 行数(不编造分母)",
+    "footer": "本机解析,不上传 · 缓存 {{seconds}}s · 文件占比按本 commit 新增行计算,删除行不计入",
     "metric": {
       "aiShare": "AI 占比",
       "aiLines": "AI 行",
       "totalLines": "总行",
+      "commits": "提交数",
       "authors": "参与人"
+    },
+    "metricHelp": {
+      "ariaLabel": "查看{{metric}}统计口径",
+      "aiShare": {
+        "definition": "当前顶部统计范围内,AI 新增行占全部新增行的比例。",
+        "formula": "ΣAI新增行 ÷ Σ(人工新增行 + 未归因新增行 + AI新增行)；分母为 0 时显示 —。"
+      },
+      "aiLines": {
+        "definition": "当前筛选后所有 commit 中,被 git-ai 归属为 AI 的新增行总和。",
+        "formula": "Σ 每个纳入统计 commit 的 AI新增行。"
+      },
+      "totalLines": {
+        "definition": "当前筛选后所有 commit 的新增行总和；删除行不计入。",
+        "formula": "Σ(人工新增行 + 未归因新增行 + AI新增行)。"
+      },
+      "commits": {
+        "definition": "当前分支 HEAD 历史窗口经过“只看我”和搜索过滤后,实际展示的 commit 数。",
+        "formula": "筛选结果中的 commit 条数；不包含未提交工作区。采集失败的 commit 仍计数。"
+      },
+      "authors": {
+        "definition": "当前筛选结果中的独立提交作者数。",
+        "formula": "对 author_email 转小写后去重；不应用 mailmap。采集失败的 commit 作者仍计数。"
+      }
+    },
+    "scope": {
+      "label": "统计范围",
+      "detachedHead": "游离 HEAD",
+      "historyWindow": "HEAD 可达最近 {{loaded}} 个 commit（上限 {{limit}}）",
+      "included": "指标纳入 {{count}} 个",
+      "onlyMine": "只看我",
+      "allAuthors": "全部作者",
+      "searchApplied": "已应用搜索",
+      "reachedLimit": "已达 {{limit}} 条上限",
+      "excludesWorking": "不含未提交改动",
+      "helpAriaLabel": "查看提交归因统计范围说明",
+      "helpTitle": "提交归因统计范围",
+      "helpSource": "数据来自当前仓库“{{repo}}”的 git log HEAD（{{branch}}）：只统计当前 HEAD 可达的提交历史,不扫描其他不可达分支。",
+      "helpLimit": "按时间从新到旧最多读取 {{limit}} 个 commit；本次读取 {{loaded}} 个。",
+      "helpFilters": "顶部五项指标基于当前筛选后的 {{included}} 个 commit；“只看我”按本仓库 git user.email 匹配,搜索继续按 message / SHA 过滤。",
+      "helpWorking": "未提交工作区是独立的实时数据,不进入顶部历史指标。",
+      "helpFailures": "当前筛选中有 {{count}} 个 commit 归因采集失败：仍计入提交数和参与人,但不把 0 当成真实行数参与三桶汇总。",
+      "helpTruncated": "已达到 {{limit}} 个 commit 上限,可能有更早的可达提交未纳入本页指标。"
     },
     "commitList": {
       "workingLabel": "未提交改动",
@@ -693,7 +737,17 @@
       "X": "未知",
       "B": "拆分"
     },
-    "aiLineChipTemplate": "{{n}} 行 AI",
+    "aiShareFormula": "文件维度按本 commit 原始 Git diff 统计：AI 占比 = AI 新增行 ÷ 该文件总新增行；删除行不计入，未命中归因的新增行记为“未归因”。文件汇总可能与应用忽略规则后的总览不同。",
+    "aiShareTemplate": "AI {{percent}} · {{ai}}/{{total}}",
+    "unattributedTemplate": "未归因 {{n}} 行",
+    "deletionsOnlyTemplate": "仅删除 {{n}} 行",
+    "noAdditions": "无新增行",
+    "mergeNotApplicable": "合并提交不计算",
+    "mergeNotApplicableShort": "合并 · —",
+    "binaryNotApplicable": "二进制文件不计算",
+    "binaryNotApplicableShort": "二进制 · —",
+    "bucketDetailsTemplate": "人工 {{human}} · 未归因 {{unknown}} · AI {{ai}}",
+    "diffTemplate": "+{{added}} / -{{deleted}}",
     "jumpBlameTitle": "在 Blame 中查看(锁定到该 commit)",
     "deletedFileTitle": "已删除文件,无法查看逐行归因",
     "viewBlameTitle": "查看该文件逐行归因"
@@ -1442,8 +1496,12 @@
       "removeTooltip": "点击移出聚合",
       "selectedCount": "已纳入聚合 {{n}} 仓",
       "selectAll": "全选可见",
-      "clear": "清空",
-      "saveFailed": "保存聚合仓库失败"
+      "selectAllHint": "把当前筛选可见的仓库加入聚合集,保留其他已选仓库。",
+      "clear": "清空聚合集",
+      "clearHint": "移除全部聚合仓库并立即清空 Dashboard 聚合视图；不会删除源码、git-ai notes、扫描目录或可复用的本地统计缓存。",
+      "clearSuccess": "已移除 {{repos}} 个聚合仓库,Dashboard 聚合视图已清空",
+      "saveFailed": "保存聚合仓库失败",
+      "clearFailed": "清空聚合集失败"
     },
     "toast": {
       "saveRootsFailed": "保存扫描根目录失败",

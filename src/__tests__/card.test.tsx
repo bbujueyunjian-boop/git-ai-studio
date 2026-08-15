@@ -13,6 +13,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
+import { MetricCard } from "../components/MetricCard";
 import { Card, CardBody, CardFooter, CardHeader } from "../components/ui/CardPanel";
 
 describe("Card / 默认样式", () => {
@@ -136,5 +137,21 @@ describe("Card / 子组件直接 import", () => {
     expect(html).toContain(">h<");
     expect(html).toContain(">b<");
     expect(html).toContain(">f<");
+  });
+});
+
+describe("MetricCard / 指标说明入口", () => {
+  it("help 与标题并排渲染,供指标公式按钮注入", () => {
+    const html = renderToStaticMarkup(
+      <MetricCard
+        title="AI 占比"
+        display="80.0%"
+        help={<button aria-label="查看 AI 占比统计口径">i</button>}
+      />,
+    );
+    expect(html).toContain("AI 占比");
+    expect(html).toContain("80.0%");
+    expect(html).toContain('aria-label="查看 AI 占比统计口径"');
+    expect(html.indexOf("AI 占比")).toBeLessThan(html.indexOf("80.0%"));
   });
 });

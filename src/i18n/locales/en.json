@@ -103,6 +103,7 @@
       "noUserEmail": "git user.email not configured; \"Only mine\" filter is unavailable"
     },
     "summary": {
+      "commitCount": "{{count}} commits",
       "truncatedTitle": "Older commits may not be included",
       "truncatedBadge": "(reached limit {{limit}})",
       "failedCount": "{{count}} failed to collect"
@@ -113,12 +114,55 @@
       "failedNotice": "Collecting git-ai stats for this commit failed; the numbers below are 0-bucket placeholders, not real data. Refresh or check Diagnostic.",
       "bucketBreakdown": "Human {{human}} · Unattributed {{unknown}} · AI {{ai}}"
     },
-    "footer": "Parsed locally, never uploaded · Cached {{seconds}}s · Per-file shows only real AI lines (no fabricated denominator)",
+    "footer": "Parsed locally, never uploaded · Cached {{seconds}}s · Per-file share uses this commit's added lines; deletions are excluded",
     "metric": {
       "aiShare": "AI Share",
       "aiLines": "AI Lines",
       "totalLines": "Total Lines",
+      "commits": "Commits",
       "authors": "Contributors"
+    },
+    "metricHelp": {
+      "ariaLabel": "View the definition of {{metric}}",
+      "aiShare": {
+        "definition": "The share of added lines attributed to AI across the commits in the current top-level scope.",
+        "formula": "Σ AI additions ÷ Σ (human additions + unknown additions + AI additions); displays — when the denominator is 0."
+      },
+      "aiLines": {
+        "definition": "The sum of added lines attributed to AI across all currently filtered commits.",
+        "formula": "Σ AI additions for every included commit."
+      },
+      "totalLines": {
+        "definition": "The sum of added lines across all currently filtered commits; deletions are excluded.",
+        "formula": "Σ (human additions + unknown additions + AI additions)."
+      },
+      "commits": {
+        "definition": "The number of commits displayed after the Only me and search filters are applied to the current HEAD history window.",
+        "formula": "Count of commits in the filtered result; the uncommitted working tree is excluded. Failed commits still count."
+      },
+      "authors": {
+        "definition": "The number of distinct commit authors in the current filtered result.",
+        "formula": "Distinct lower-cased author_email values; mailmap is not applied. Authors of failed commits still count."
+      }
+    },
+    "scope": {
+      "label": "Scope",
+      "detachedHead": "Detached HEAD",
+      "historyWindow": "latest {{loaded}} commits reachable from HEAD (limit {{limit}})",
+      "included": "{{count}} included in metrics",
+      "onlyMine": "Only me",
+      "allAuthors": "All authors",
+      "searchApplied": "Search applied",
+      "reachedLimit": "Reached the {{limit}}-commit limit",
+      "excludesWorking": "uncommitted changes excluded",
+      "helpAriaLabel": "View commit attribution scope",
+      "helpTitle": "Commit attribution scope",
+      "helpSource": "Data comes from git log HEAD in the current repository “{{repo}}” ({{branch}}). Only history reachable from the current HEAD is scanned; unreachable branches are not.",
+      "helpLimit": "Commits are read newest first, up to {{limit}}; {{loaded}} were loaded this time.",
+      "helpFilters": "The five metrics use the current {{included}} filtered commits. Only me matches this repository's git user.email; search further filters message / SHA.",
+      "helpWorking": "The uncommitted working tree is live data shown separately and is not included in the top historical metrics.",
+      "helpFailures": "{{count}} commits in the current filter failed attribution collection. They still count toward commits and contributors, but their zero placeholders are not treated as real line totals.",
+      "helpTruncated": "The {{limit}}-commit limit was reached, so older reachable commits may not be included in these metrics."
     },
     "commitList": {
       "workingLabel": "Uncommitted changes",
@@ -693,7 +737,17 @@
       "X": "Unknown",
       "B": "Split"
     },
-    "aiLineChipTemplate": "{{n}} AI lines",
+    "aiShareFormula": "Per-file metrics use this commit's raw Git diff: AI share = AI-added lines ÷ all lines added to the file. Deletions are excluded; added lines without attribution are Unknown. File totals may differ from the overview after ignore rules are applied.",
+    "aiShareTemplate": "AI {{percent}} · {{ai}}/{{total}}",
+    "unattributedTemplate": "{{n}} unknown lines",
+    "deletionsOnlyTemplate": "Deleted {{n}} lines only",
+    "noAdditions": "No added lines",
+    "mergeNotApplicable": "Not calculated for merges",
+    "mergeNotApplicableShort": "Merge · —",
+    "binaryNotApplicable": "Not calculated for binary files",
+    "binaryNotApplicableShort": "Binary · —",
+    "bucketDetailsTemplate": "Human {{human}} · Unknown {{unknown}} · AI {{ai}}",
+    "diffTemplate": "+{{added}} / -{{deleted}}",
     "jumpBlameTitle": "Open in Blame (locked to this commit)",
     "deletedFileTitle": "Deleted file — line attribution unavailable",
     "viewBlameTitle": "View line-by-line attribution for this file"
@@ -1442,8 +1496,12 @@
       "removeTooltip": "Click to remove from aggregation",
       "selectedCount": "{{n}} repos in aggregation",
       "selectAll": "Select visible",
-      "clear": "Clear",
-      "saveFailed": "Failed to save aggregation repos"
+      "selectAllHint": "Add every currently visible repository while keeping other selected repositories.",
+      "clear": "Clear aggregate set",
+      "clearHint": "Remove every aggregate repository and immediately clear the Dashboard roll-up. Source code, git-ai notes, scan roots, and reusable local stats caches are not deleted.",
+      "clearSuccess": "Removed {{repos}} aggregate repositories; the Dashboard roll-up is now clear",
+      "saveFailed": "Failed to save aggregation repos",
+      "clearFailed": "Failed to clear the aggregate set"
     },
     "toast": {
       "saveRootsFailed": "Failed to save scan roots",

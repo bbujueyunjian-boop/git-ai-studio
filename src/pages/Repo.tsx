@@ -12,6 +12,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -33,7 +34,7 @@ import {
 } from "../lib/api";
 import { cn } from "../lib/cn";
 import { pickDirectory } from "../lib/pickDirectory";
-import type { RepoEntry } from "../lib/types";
+import type { AggregateRepoEntry, RepoEntry } from "../lib/types";
 import { useRepoChanged } from "../lib/useRepoChanged";
 import { useRouter } from "../router";
 
@@ -100,13 +101,43 @@ export default function RepoPage() {
   );
   const aggregateM = useMutation({
     mutationFn: setAggregateRepos,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["aggregate_repos"] });
-      // 聚合集合变了 → Dashboard 跨仓视图需重算。
-      qc.invalidateQueries({ queryKey: ["history_agg"] });
+    onSuccess: (_result, paths) => {
+      const savedByPath = new Map(
+        (aggregateQ.data ?? []).map((repo) => [repo.path.toLowerCase(), repo]),
+      );
+      const discoveredByPath = new Map(
+        (reposQ.data ?? []).map((repo) => [repo.path.toLowerCase(), repo]),
+      );
+      const next: AggregateRepoEntry[] = paths.map((path) => {
+        const saved = savedByPath.get(path.toLowerCase());
+        if (saved) return saved;
+        const entry = discoveredByPath.get(path.toLowerCase()) ?? null;
+        return { path, valid: entry !== null, entry };
+      });
+      qc.setQueryData(["aggregate_repos"], next);
+      // 聚合集合变了 → 旧集合维度的跨仓缓存立即移除，避免短暂展示旧数据。
+      qc.removeQueries({ queryKey: ["history_agg"] });
+      qc.removeQueries({ queryKey: ["working_agg"] });
     },
     onError: (e) =>
       toast.error(t("repo.aggregate.saveFailed"), { description: (e as Error).message }),
+  });
+  const clearAggregateM = useMutation({
+    mutationFn: async () => {
+      const repos = aggregateSet.size;
+      await setAggregateRepos([]);
+      return { repos };
+    },
+    onSuccess: ({ repos }) => {
+      qc.setQueryData<AggregateRepoEntry[]>(["aggregate_repos"], []);
+      qc.removeQueries({ queryKey: ["history_agg"] });
+      qc.removeQueries({ queryKey: ["working_agg"] });
+      toast.success(t("repo.aggregate.clearSuccess", { repos }));
+    },
+    onError: (e) => {
+      void qc.invalidateQueries({ queryKey: ["aggregate_repos"] });
+      toast.error(t("repo.aggregate.clearFailed"), { description: (e as Error).message });
+    },
   });
   function toggleAggregate(path: string) {
     const cur = new Set((aggregateQ.data ?? []).map((e) => e.path));
@@ -125,7 +156,7 @@ export default function RepoPage() {
     aggregateM.mutate([...next]);
   }
   function aggregateClear() {
-    aggregateM.mutate([]);
+    clearAggregateM.mutate();
   }
 
   const filtered = useMemo(() => {
@@ -231,19 +262,27 @@ export default function RepoPage() {
         <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
           <span>{t("repo.aggregate.selectedCount", { n: aggregateSet.size })}</span>
           <button
+            type="button"
             onClick={aggregateAll}
-            disabled={filtered.length === 0 || aggregateM.isPending}
-            className="rounded-sm px-1.5 py-0.5 hover:bg-muted hover:text-foreground disabled:opacity-50"
+            disabled={filtered.length === 0 || aggregateM.isPending || clearAggregateM.isPending}
+            title={t("repo.aggregate.selectAllHint")}
+            className="inline-flex items-center rounded-md border border-border bg-secondary px-2.5 py-1 font-medium text-secondary-foreground hover:bg-secondary/80 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {t("repo.aggregate.selectAll")}
           </button>
-          <button
-            onClick={aggregateClear}
-            disabled={aggregateSet.size === 0 || aggregateM.isPending}
-            className="rounded-sm px-1.5 py-0.5 hover:bg-muted hover:text-foreground disabled:opacity-50"
-          >
-            {t("repo.aggregate.clear")}
-          </button>
+          <Tooltip content={t("repo.aggregate.clearHint")}>
+            <button
+              type="button"
+              onClick={aggregateClear}
+              disabled={
+                aggregateSet.size === 0 || aggregateM.isPending || clearAggregateM.isPending
+              }
+              className="inline-flex items-center gap-1 rounded-md border border-danger bg-transparent px-2.5 py-1 font-medium text-danger hover:bg-danger-muted disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Trash2 className="h-3 w-3" />
+              {t("repo.aggregate.clear")}
+            </button>
+          </Tooltip>
         </div>
         {filtered.length === 0 && !reposQ.isFetching && (
           <div className="rounded-sm border border-dashed border-border px-4 py-8 text-center text-xs text-muted-foreground dark:border-border">
@@ -257,6 +296,7 @@ export default function RepoPage() {
               repo={r}
               isCurrent={!!currentPath && currentPath.toLowerCase() === r.path.toLowerCase()}
               inAggregate={aggregateSet.has(r.path.toLowerCase())}
+              aggregateUpdating={aggregateM.isPending || clearAggregateM.isPending}
               onToggleAggregate={() => toggleAggregate(r.path)}
               viewing={pickM.isPending && pickM.variables === r.path}
               onView={() => pickM.mutate(r.path)}
@@ -395,6 +435,7 @@ function RepoRow({
   repo,
   isCurrent,
   inAggregate,
+  aggregateUpdating,
   onToggleAggregate,
   viewing,
   opening,
@@ -404,6 +445,7 @@ function RepoRow({
   repo: RepoEntry;
   isCurrent: boolean;
   inAggregate: boolean;
+  aggregateUpdating: boolean;
   onToggleAggregate: () => void;
   viewing: boolean;
   opening: boolean;
@@ -470,10 +512,11 @@ function RepoRow({
         <button
           type="button"
           onClick={onToggleAggregate}
+          disabled={aggregateUpdating}
           aria-pressed={inAggregate}
           aria-label={t("repo.aggregate.includeLabel")}
           className={cn(
-            "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium",
+            "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50",
             inAggregate
               ? "bg-primary text-primary-foreground hover:bg-primary/90"
               : "border border-border text-foreground hover:bg-muted dark:hover:bg-muted",

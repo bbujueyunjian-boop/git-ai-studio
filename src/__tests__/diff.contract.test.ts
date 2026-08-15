@@ -5,13 +5,27 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { AiLineRef, AiLinesResult, ChangedFile, ChangedFilesResult } from "../lib/types";
+import type {
+  AiLineRef,
+  AiLinesResult,
+  ChangedFile,
+  ChangedFilesResult,
+  FileLineStats,
+} from "../lib/types";
 
 describe("ChangedFilesResult / AiLinesResult 字段契约", () => {
-  it("ChangedFile 字段:path + status", () => {
-    const f: ChangedFile = { path: "src/foo.rs", status: "A" };
+  it("ChangedFile 字段:path + status + line_stats", () => {
+    const stats: FileLineStats = {
+      additions: 10,
+      deletions: 2,
+      ai_additions: 6,
+      human_additions: 1,
+      unknown_additions: 3,
+    };
+    const f: ChangedFile = { path: "src/foo.rs", status: "A", line_stats: stats };
     expect(f.path).toBe("src/foo.rs");
     expect(f.status).toBe("A");
+    expect(f.line_stats?.ai_additions).toBe(6);
   });
 
   it("AiLineRef 字段:file + line_start + line_end", () => {
@@ -22,9 +36,10 @@ describe("ChangedFilesResult / AiLinesResult 字段契约", () => {
   it("ChangedFilesResult tagged on status='ok'", () => {
     const r: ChangedFilesResult = {
       status: "ok",
+      is_merge: false,
       files: [
-        { path: "a.rs", status: "M" },
-        { path: "b.rs", status: "A" },
+        { path: "a.rs", status: "M", line_stats: null },
+        { path: "b.rs", status: "A", line_stats: null },
       ],
     };
     expect(r.status).toBe("ok");
@@ -66,7 +81,7 @@ describe("ChangedFilesResult / AiLinesResult 字段契约", () => {
   it("status 字符表覆盖 A/M/D/R/C/T/U/X/B 9 种", () => {
     const all = ["A", "M", "D", "R", "C", "T", "U", "X", "B"];
     for (const s of all) {
-      const f: ChangedFile = { path: "x", status: s };
+      const f: ChangedFile = { path: "x", status: s, line_stats: null };
       expect(f.status).toMatch(/^[A-Z]$/);
     }
   });

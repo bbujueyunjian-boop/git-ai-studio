@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { Card } from "./ui/CardPanel";
 
 /**
@@ -10,10 +12,12 @@ export function MetricCard({
   title,
   display,
   tone = "neutral",
+  help,
 }: {
   title: string;
   display: string;
   tone?: "ai" | "human" | "neutral";
+  help?: ReactNode;
 }) {
   return (
     <Card
@@ -22,7 +26,10 @@ export function MetricCard({
       tone={tone}
       className="flex min-h-[100px] flex-col justify-between"
     >
-      <div className="text-[11px] font-medium text-muted-foreground">{title}</div>
+      <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+        <span>{title}</span>
+        {help}
+      </div>
       <div className="mt-1 font-mono text-[28px] font-bold leading-tight tabular-nums text-foreground">
         {display}
       </div>

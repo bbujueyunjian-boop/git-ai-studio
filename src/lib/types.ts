@@ -703,6 +703,17 @@ export interface BlamePayload {
 export interface ChangedFile {
   path: string;
   status: string;
+  /** merge / binary 为 null；文本文件即使没有新增行也有统计对象。 */
+  line_stats: FileLineStats | null;
+}
+
+/** 单文件本 commit 的新增行三桶；删除行不进入 AI 占比分母。 */
+export interface FileLineStats {
+  additions: number;
+  deletions: number;
+  ai_additions: number;
+  human_additions: number;
+  unknown_additions: number;
 }
 
 /**
@@ -719,7 +730,7 @@ export interface AiLineRef {
 export type DiffDegradedReason = { kind: "repo_missing" } | { kind: "invalid_sha"; sha: string };
 
 export type ChangedFilesResult =
-  | { status: "ok"; files: ChangedFile[] }
+  | { status: "ok"; files: ChangedFile[]; is_merge: boolean }
   | { status: "degraded"; reason: DiffDegradedReason };
 
 export type AiLinesResult =

@@ -7,7 +7,7 @@
 // # 权威 schema 来源
 // - 字段定义:`git-ai/src/authorship/stats.rs:9-33`;公式 total = human + unknown + ai(stats.rs:114)
 // - per-commit 数据来自 `list_recent_commits_with_stats`(复用 get_history 的 SQLite 缓存)
-// - 「每文件 AI」只显**真实 AI 行数**(list_ai_lines_in_commit),不编造每文件总行数分母
+// - 文件 AI 占比由 note 行范围与本 commit diff 新增行求交后派生，删除行不进入分母
 // - commit 级 AI% 用真实三桶派生;merge 行为见 specs §2.2(ai_accepted 恒 0)
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,7 +16,9 @@ import {
   Copy,
   FileText,
   FolderOpen,
+  GitBranch,
   GitMerge,
+  Info,
   Loader2,
   Maximize2,
   Minimize2,
@@ -43,6 +45,7 @@ import { StatsBar } from "../components/StatsBar";
 import { WorkingDirSummary, WORKING_DIR_SHA_TOKEN } from "../components/WorkingDirSummary";
 import { Card } from "../components/ui/CardPanel";
 import { Dialog } from "../components/ui/DialogShell";
+import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/PopoverPanel";
 import {
   currentGitUserEmail,
   currentRepo,
@@ -189,6 +192,9 @@ export default function StatsPage() {
     if (q && !c.subject.toLowerCase().includes(q) && !c.sha.toLowerCase().includes(q)) return false;
     return true;
   });
+  const filteredFailedShas = filtered
+    .filter((commit) => failedShas.has(commit.sha))
+    .map((commit) => commit.sha);
 
   const agg = aggregate(filtered);
 
@@ -202,7 +208,18 @@ export default function StatsPage() {
 
   return (
     <div className="absolute inset-0 flex flex-col overflow-hidden bg-background">
-      <MetricsBar agg={agg} count={filtered.length} />
+      <MetricsBar
+        agg={agg}
+        count={filtered.length}
+        repoName={repoQ.data?.name ?? "—"}
+        branch={repoQ.data?.head_branch ?? null}
+        loadedCount={allCommits.length}
+        limit={COMMIT_LIST_LIMIT}
+        truncated={payload?.truncated ?? false}
+        onlyMine={onlyMine && userEmail !== null}
+        hasSearch={q.length > 0}
+        failedCount={filteredFailedShas.length}
+      />
 
       {/* 过滤条:搜索 + 只看我 + 右侧统计 / 刷新 */}
       <header className="flex h-12 shrink-0 flex-wrap items-center gap-2 border-b border-border px-3">
@@ -224,7 +241,7 @@ export default function StatsPage() {
         )}
         <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">
           <span>
-            {filtered.length} commits
+            {t("stats.summary.commitCount", { count: filtered.length })}
             {payload?.truncated && (
               <span
                 className="ml-1 text-warning-foreground dark:text-warning"
@@ -234,9 +251,9 @@ export default function StatsPage() {
               </span>
             )}
           </span>
-          {failedShas.size > 0 && (
-            <span className="text-danger" title={[...failedShas].join("\n")}>
-              {t("stats.summary.failedCount", { count: failedShas.size })}
+          {filteredFailedShas.length > 0 && (
+            <span className="text-danger" title={filteredFailedShas.join("\n")}>
+              {t("stats.summary.failedCount", { count: filteredFailedShas.length })}
             </span>
           )}
           <span className="font-medium text-primary">AI {formatPercent(agg.aiPct)}</span>
@@ -322,20 +339,210 @@ export default function StatsPage() {
 
 // 指标看板:与作者归因(People)同款卡片布局。AI 行 / 总行拆成两张独立卡,
 // 不再挤成 "X / Y" 单行(大数字会换行),每卡一个数字。
-function MetricsBar({ agg, count }: { agg: ReturnType<typeof aggregate>; count: number }) {
+function MetricsBar({
+  agg,
+  count,
+  repoName,
+  branch,
+  loadedCount,
+  limit,
+  truncated,
+  onlyMine,
+  hasSearch,
+  failedCount,
+}: {
+  agg: ReturnType<typeof aggregate>;
+  count: number;
+  repoName: string;
+  branch: string | null;
+  loadedCount: number;
+  limit: number;
+  truncated: boolean;
+  onlyMine: boolean;
+  hasSearch: boolean;
+  failedCount: number;
+}) {
   const { t } = useTranslation();
   return (
     <div className="shrink-0 border-b border-border p-3">
+      <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1 font-medium text-foreground">
+          <GitBranch className="h-3 w-3 text-primary" />
+          {t("stats.scope.label")}
+          <StatsScopeHelp
+            repoName={repoName}
+            branch={branch}
+            loadedCount={loadedCount}
+            includedCount={count}
+            limit={limit}
+            truncated={truncated}
+            failedCount={failedCount}
+          />
+        </span>
+        <span className="max-w-48 truncate" title={repoName}>
+          {repoName}
+        </span>
+        <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[9px] text-foreground">
+          {branch ?? t("stats.scope.detachedHead")}
+        </code>
+        <span>· {t("stats.scope.historyWindow", { loaded: loadedCount, limit })}</span>
+        <span>· {t("stats.scope.included", { count })}</span>
+        <span className="rounded-full bg-muted px-1.5 py-0.5">
+          {onlyMine ? t("stats.scope.onlyMine") : t("stats.scope.allAuthors")}
+        </span>
+        {hasSearch && (
+          <span className="rounded-full bg-warning-muted px-1.5 py-0.5 text-warning-foreground dark:text-warning">
+            {t("stats.scope.searchApplied")}
+          </span>
+        )}
+        {truncated && (
+          <span className="text-warning-foreground dark:text-warning">
+            {t("stats.scope.reachedLimit", { limit })}
+          </span>
+        )}
+        <span>· {t("stats.scope.excludesWorking")}</span>
+      </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         <MetricCard
           title={t("stats.metric.aiShare")}
           display={formatPercent(agg.aiPct)}
           tone="ai"
+          help={<StatsMetricHelp metric="aiShare" />}
         />
-        <MetricCard title={t("stats.metric.aiLines")} display={formatInt(agg.ai)} tone="ai" />
-        <MetricCard title={t("stats.metric.totalLines")} display={formatInt(agg.total)} />
-        <MetricCard title="Commits" display={formatInt(count)} />
-        <MetricCard title={t("stats.metric.authors")} display={formatInt(agg.authors)} />
+        <MetricCard
+          title={t("stats.metric.aiLines")}
+          display={formatInt(agg.ai)}
+          tone="ai"
+          help={<StatsMetricHelp metric="aiLines" />}
+        />
+        <MetricCard
+          title={t("stats.metric.totalLines")}
+          display={formatInt(agg.total)}
+          help={<StatsMetricHelp metric="totalLines" />}
+        />
+        <MetricCard
+          title={t("stats.metric.commits")}
+          display={formatInt(count)}
+          help={<StatsMetricHelp metric="commits" />}
+        />
+        <MetricCard
+          title={t("stats.metric.authors")}
+          display={formatInt(agg.authors)}
+          help={<StatsMetricHelp metric="authors" />}
+        />
+      </div>
+    </div>
+  );
+}
+
+type StatsMetricHelpId = "aiShare" | "aiLines" | "totalLines" | "commits" | "authors";
+
+function StatsMetricHelp({ metric }: { metric: StatsMetricHelpId }) {
+  const { t } = useTranslation();
+  const title = t(`stats.metric.${metric}`);
+  const definition = t(`stats.metricHelp.${metric}.definition`);
+  const formula = t(`stats.metricHelp.${metric}.formula`);
+
+  return (
+    <HelpPopover label={t("stats.metricHelp.ariaLabel", { metric: title })} title={title}>
+      <HelpSection label={t("formula.definition")}>{definition}</HelpSection>
+      <HelpSection label={t("formula.formula")} mono>
+        {formula}
+      </HelpSection>
+    </HelpPopover>
+  );
+}
+
+function StatsScopeHelp({
+  repoName,
+  branch,
+  loadedCount,
+  includedCount,
+  limit,
+  truncated,
+  failedCount,
+}: {
+  repoName: string;
+  branch: string | null;
+  loadedCount: number;
+  includedCount: number;
+  limit: number;
+  truncated: boolean;
+  failedCount: number;
+}) {
+  const { t } = useTranslation();
+  return (
+    <HelpPopover label={t("stats.scope.helpAriaLabel")} title={t("stats.scope.helpTitle")}>
+      <ul className="list-disc space-y-1.5 pl-4 text-[11px] leading-relaxed text-muted-foreground">
+        <li>
+          {t("stats.scope.helpSource", {
+            repo: repoName,
+            branch: branch ?? t("stats.scope.detachedHead"),
+          })}
+        </li>
+        <li>{t("stats.scope.helpLimit", { loaded: loadedCount, limit })}</li>
+        <li>{t("stats.scope.helpFilters", { included: includedCount })}</li>
+        <li>{t("stats.scope.helpWorking")}</li>
+        <li>{t("stats.scope.helpFailures", { count: failedCount })}</li>
+        {truncated && (
+          <li className="text-warning-foreground dark:text-warning">
+            {t("stats.scope.helpTruncated", { limit })}
+          </li>
+        )}
+      </ul>
+    </HelpPopover>
+  );
+}
+
+function HelpPopover({
+  label,
+  title,
+  children,
+}: {
+  label: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          aria-haspopup="dialog"
+          className="inline-flex h-4 w-4 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+        >
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80" align="start">
+        <div className="space-y-2.5">
+          <div className="text-sm font-semibold text-foreground">{title}</div>
+          {children}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function HelpSection({
+  label,
+  children,
+  mono = false,
+}: {
+  label: string;
+  children: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div>
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      <div
+        className={cn("mt-0.5 text-[11px] leading-relaxed text-foreground", mono && "font-mono")}
+      >
+        {children}
       </div>
     </div>
   );
