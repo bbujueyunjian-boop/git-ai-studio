@@ -1,0 +1,29 @@
+package.json
+  s_701674af09ebb1::t_3b44963394450d 4
+src-tauri/Cargo.toml
+  s_701674af09ebb1::t_3b44963394450d 3
+README.md
+  s_701674af09ebb1::t_3b44963394450d 11,67
+src-tauri/tauri.conf.json
+  s_701674af09ebb1::t_3b44963394450d 4
+README.zh-CN.md
+  s_701674af09ebb1::t_3b44963394450d 11,67
+CHANGELOG.md
+  s_701674af09ebb1::t_3b44963394450d 11-20,129-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "0eb29e287dead7409a9ede65e9aa0c3953de4cc1",
+  "prompts": {},
+  "sessions": {
+    "s_701674af09ebb1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a008f8-dd53-76f1-9cd4-d5927381532a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}
