@@ -142,6 +142,23 @@ pub async fn list_recent_repos() -> Result<Vec<String>, String> {
     Ok(AppSettings::load().recent_repos)
 }
 
+fn clear_recent_repo_history(settings: &mut AppSettings) -> usize {
+    let cleared = settings.recent_repos.len();
+    settings.recent_repos.clear();
+    cleared
+}
+
+/// 仅清空顶部仓库切换器的最近打开记录。
+///
+/// 当前仓库与 `last_repo` 继续保留,避免“清历史”意外改变正在查看的仓库或下次启动恢复行为。
+#[tauri::command]
+pub async fn clear_recent_repos() -> Result<usize, String> {
+    let mut settings = AppSettings::load();
+    let cleared = clear_recent_repo_history(&mut settings);
+    settings.save().map_err(|e| format!("写配置失败: {e}"))?;
+    Ok(cleared)
+}
+
 #[tauri::command]
 pub async fn list_scan_roots() -> Result<Vec<String>, String> {
     Ok(AppSettings::load().scan_roots)
@@ -288,7 +305,8 @@ pub async fn open_in_explorer(path: String) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::dedup_aggregate_paths;
+    use super::{clear_recent_repo_history, dedup_aggregate_paths};
+    use crate::state::AppSettings;
 
     #[test]
     fn dedup_removes_exact_duplicates_order_preserving() {
@@ -305,5 +323,22 @@ mod tests {
     #[test]
     fn dedup_empty_stays_empty() {
         assert!(dedup_aggregate_paths(vec![]).is_empty());
+    }
+
+    #[test]
+    fn clearing_recent_history_preserves_other_repository_settings() {
+        let mut settings = AppSettings {
+            recent_repos: vec!["/ws/repo-a".to_string(), "/ws/repo-b".to_string()],
+            last_repo: Some("/ws/repo-a".to_string()),
+            scan_roots: vec!["/ws".to_string()],
+            aggregate_repos: vec!["/ws/repo-b".to_string()],
+            ..AppSettings::default()
+        };
+
+        assert_eq!(clear_recent_repo_history(&mut settings), 2);
+        assert!(settings.recent_repos.is_empty());
+        assert_eq!(settings.last_repo.as_deref(), Some("/ws/repo-a"));
+        assert_eq!(settings.scan_roots, vec!["/ws"]);
+        assert_eq!(settings.aggregate_repos, vec!["/ws/repo-b"]);
     }
 }

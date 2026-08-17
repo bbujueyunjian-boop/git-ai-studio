@@ -1318,6 +1318,12 @@
     "recentRepos": "最近打开",
     "noRecentRepos": "暂无最近仓库",
     "searchRepoPlaceholder": "搜索仓库名 / 路径…",
+    "clearRecent": "清空记录",
+    "clearRecentConfirm": "只清除最近打开记录，不删除源码、扫描目录、Dashboard 聚合集或当前仓库。",
+    "confirmClearRecent": "确认清空",
+    "cancel": "取消",
+    "clearRecentSuccess": "已清除 {{count}} 条最近打开记录",
+    "clearRecentFailed": "清空最近打开记录失败",
     "manageRepos": "管理仓库…",
     "settingsTooltip": "设置",
     "shaCopied": "HEAD SHA 已复制",
@@ -1484,10 +1490,6 @@
       "currentNone": "未选择",
       "currentHint": "Stats / People / Blame / 桌面宠物 显示的就是这个仓库。"
     },
-    "manage": {
-      "title": "扫描目录与最近打开",
-      "rootCount": "{{n}} 个扫描根"
-    },
     "aggregate": {
       "includeLabel": "纳入跨仓聚合",
       "add": "加入",
@@ -1511,6 +1513,13 @@
     },
     "scanRoots": {
       "title": "扫描根目录",
+      "summaryTitle": "扫描范围",
+      "summary": "{{roots}} 个目录 · 已发现 {{repos}} 个仓库",
+      "scanning": "扫描中…",
+      "manage": "管理扫描目录",
+      "manageTitle": "管理扫描目录",
+      "manageDescription": "Studio 会在这些目录下自动发现 Git 仓库。最近打开记录请在顶部仓库切换器中管理。",
+      "close": "关闭",
       "rescan": "重新扫描",
       "emptyHint": "还没添加目录。建议添加你保存代码的总目录,例如",
       "remove": "移除",
@@ -1521,15 +1530,11 @@
       "pasteAdvanced": "直接粘路径(高级)",
       "pastePlaceholder": "例如 D:\\script"
     },
-    "recent": {
-      "title": "最近打开",
-      "open": "打开 →"
-    },
     "all": {
       "title": "全部仓库",
       "filterPlaceholder": "按名称或路径过滤",
       "empty": "没有匹配的仓库。请检查扫描根目录或过滤词。",
-      "emptyNoRoots": "还没扫描到仓库。展开下方「扫描目录与最近打开」添加你存放代码的总目录。"
+      "emptyNoRoots": "还没扫描到仓库。点击上方「管理扫描目录」添加你存放代码的总目录。"
     },
     "row": {
       "dirty": "未提交",

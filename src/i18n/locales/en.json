@@ -1318,6 +1318,12 @@
     "recentRepos": "Recent",
     "noRecentRepos": "No recent repositories",
     "searchRepoPlaceholder": "Search repo name / path…",
+    "clearRecent": "Clear history",
+    "clearRecentConfirm": "Only the recently opened history will be cleared. Source code, scan roots, the Dashboard aggregate set, and the current repository stay unchanged.",
+    "confirmClearRecent": "Clear history",
+    "cancel": "Cancel",
+    "clearRecentSuccess": "Cleared {{count}} recently opened repositories",
+    "clearRecentFailed": "Failed to clear recently opened repositories",
     "manageRepos": "Manage repositories…",
     "settingsTooltip": "Settings",
     "shaCopied": "HEAD SHA copied",
@@ -1484,10 +1490,6 @@
       "currentNone": "None selected",
       "currentHint": "Stats / People / Blame / the desktop pet all show this repo."
     },
-    "manage": {
-      "title": "Scan roots & recently opened",
-      "rootCount": "{{n}} scan roots"
-    },
     "aggregate": {
       "includeLabel": "Include in cross-repo aggregation",
       "add": "Add",
@@ -1511,6 +1513,13 @@
     },
     "scanRoots": {
       "title": "Scan roots",
+      "summaryTitle": "Scan scope",
+      "summary": "{{roots}} directories · {{repos}} repositories found",
+      "scanning": "Scanning…",
+      "manage": "Manage scan roots",
+      "manageTitle": "Manage scan roots",
+      "manageDescription": "Studio automatically discovers Git repositories under these directories. Manage recently opened history from the repository switcher in the top bar.",
+      "close": "Close",
       "rescan": "Rescan",
       "emptyHint": "No directories added yet. Add the top-level folder where you keep your code, e.g.",
       "remove": "Remove",
@@ -1521,15 +1530,11 @@
       "pasteAdvanced": "Paste a path directly (advanced)",
       "pastePlaceholder": "e.g. D:\\script"
     },
-    "recent": {
-      "title": "Recently opened",
-      "open": "Open →"
-    },
     "all": {
       "title": "All repositories",
       "filterPlaceholder": "Filter by name or path",
       "empty": "No matching repositories. Check your scan roots or filter term.",
-      "emptyNoRoots": "No repositories found yet. Expand \"Scan roots & recently opened\" below to add the top-level folder where you keep your code."
+      "emptyNoRoots": "No repositories found yet. Use \"Manage scan roots\" above to add the top-level folder where you keep your code."
     },
     "row": {
       "dirty": "Uncommitted",

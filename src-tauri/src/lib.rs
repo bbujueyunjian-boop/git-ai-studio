@@ -169,6 +169,7 @@ pub fn run() {
             commands::repo::current_git_user_email,
             commands::repo::detect_dirty,
             commands::repo::list_recent_repos,
+            commands::repo::clear_recent_repos,
             commands::repo::list_scan_roots,
             commands::repo::set_scan_roots,
             commands::repo::get_aggregate_repos,

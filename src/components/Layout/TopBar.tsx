@@ -1,10 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronDown, Copy, FolderGit2, GitBranch, Loader2, Settings } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  FolderGit2,
+  GitBranch,
+  Loader2,
+  Settings,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   checkoutBranch,
+  clearRecentRepos,
   currentRepo as currentRepoApi,
   listBranches,
   listRecentRepos,
@@ -64,9 +74,23 @@ export function TopBar({ onNavigate, onRepoChanged }: Props) {
     staleTime: 30_000,
   });
   const [repoPickerOpen, setRepoPickerOpen] = useState(false);
+  const [clearRecentConfirmOpen, setClearRecentConfirmOpen] = useState(false);
 
   const repo = repoQ.data ?? null;
   const recents = recentQ.data ?? [];
+
+  const clearRecentM = useMutation({
+    mutationFn: clearRecentRepos,
+    onSuccess: (cleared) => {
+      qc.setQueryData<string[]>(["recent_repos"], []);
+      setClearRecentConfirmOpen(false);
+      toast.success(t("topBar.clearRecentSuccess", { count: cleared }));
+    },
+    onError: (e) => {
+      void qc.invalidateQueries({ queryKey: ["recent_repos"] });
+      toast.error(t("topBar.clearRecentFailed"), { description: (e as Error).message });
+    },
+  });
 
   async function copyShaToClipboard() {
     if (!repo?.head_sha) return;
@@ -87,7 +111,13 @@ export function TopBar({ onNavigate, onRepoChanged }: Props) {
   return (
     <header className="flex h-12 items-center gap-3 border-b border-border bg-background px-4">
       {/* 仓库切换器:always-visible。cmdk 驱动的可搜索下拉。 */}
-      <Popover open={repoPickerOpen} onOpenChange={setRepoPickerOpen}>
+      <Popover
+        open={repoPickerOpen}
+        onOpenChange={(open) => {
+          setRepoPickerOpen(open);
+          if (!open) setClearRecentConfirmOpen(false);
+        }}
+      >
         <PopoverTrigger asChild>
           <button
             className={cn(
@@ -106,13 +136,20 @@ export function TopBar({ onNavigate, onRepoChanged }: Props) {
               <CommandInput placeholder={t("topBar.searchRepoPlaceholder")} />
             )}
             <CommandList>
+              <div className="flex items-center justify-between px-3 py-1.5 text-[10px] font-medium text-slate-500">
+                <span>{t("topBar.recentRepos")}</span>
+                <button
+                  type="button"
+                  onClick={() => setClearRecentConfirmOpen(true)}
+                  disabled={recents.length === 0 || clearRecentM.isPending}
+                  className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-danger hover:bg-danger-muted disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  {t("topBar.clearRecent")}
+                </button>
+              </div>
               <CommandEmpty>{t("topBar.noRecentRepos")}</CommandEmpty>
-              <CommandGroup heading={t("topBar.recentRepos")}>
-                {recents.length === 0 && (
-                  <div className="px-2 py-1 text-xs text-muted-foreground">
-                    {t("topBar.noRecentRepos")}
-                  </div>
-                )}
+              <CommandGroup>
                 {recents.map((p) => (
                   <CommandItem
                     key={p}
@@ -128,6 +165,30 @@ export function TopBar({ onNavigate, onRepoChanged }: Props) {
               </CommandGroup>
             </CommandList>
           </Command>
+          {clearRecentConfirmOpen && (
+            <div className="border-t border-border bg-danger-muted px-3 py-2 text-xs">
+              <p className="text-foreground">{t("topBar.clearRecentConfirm")}</p>
+              <div className="mt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setClearRecentConfirmOpen(false)}
+                  disabled={clearRecentM.isPending}
+                  className="rounded-md px-2 py-1 text-muted-foreground hover:bg-muted disabled:opacity-50"
+                >
+                  {t("topBar.cancel")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => clearRecentM.mutate()}
+                  disabled={clearRecentM.isPending}
+                  className="inline-flex items-center gap-1 rounded-md border border-danger px-2 py-1 font-medium text-danger hover:bg-danger-muted disabled:opacity-50"
+                >
+                  {clearRecentM.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+                  {t("topBar.confirmClearRecent")}
+                </button>
+              </div>
+            </div>
+          )}
           {/* 「管理仓库…」放在 Command 容器之外:cmdk 1.x 的 CommandItem 即便 forceMount,
               当 value 与当前 filter 词不匹配时,鼠标点击的 onSelect 会被静默吞掉。改成
               Popover 内的独立 button,绕开 cmdk 的 filter / selectable 机制,直接 onClick。 */}

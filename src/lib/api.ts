@@ -81,6 +81,7 @@ export const currentRepo = () => call<RepoEntry | null>("current_repo");
 export const currentGitUserEmail = () => call<string | null>("current_git_user_email");
 export const detectDirty = (path: string) => call<boolean | null>("detect_dirty", { path });
 export const listRecentRepos = () => call<string[]>("list_recent_repos");
+export const clearRecentRepos = () => call<number>("clear_recent_repos");
 export const listScanRoots = () => call<string[]>("list_scan_roots");
 export const setScanRoots = (roots: string[]) => call<void>("set_scan_roots", { roots });
 /** 跨仓聚合的显式仓库集合(M1)。get 返回带有效性标注;set 做 normalize + 去重持久化。 */

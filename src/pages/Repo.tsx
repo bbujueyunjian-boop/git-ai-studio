@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   Check,
-  Clock,
   Crosshair,
   FolderGit2,
   FolderOpen,
@@ -20,12 +19,12 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { Badge } from "../components/Badge";
+import { Dialog } from "../components/ui/DialogShell";
 import { Tooltip } from "../components/ui/TooltipBubble";
 import {
   currentRepo as currentRepoApi,
   discoverRepos,
   getAggregateRepos,
-  listRecentRepos,
   listScanRoots,
   openInExplorer,
   selectRepo,
@@ -46,6 +45,7 @@ export default function RepoPage() {
   const [filter, setFilter] = useState("");
   const [newRoot, setNewRoot] = useState("");
   const [openingPath, setOpeningPath] = useState<string | null>(null);
+  const [scanRootsOpen, setScanRootsOpen] = useState(false);
 
   // 当前选中仓库,用于列表里高亮"当前"行。staleTime 与 TopBar 一致,共享缓存。
   const currentRepoQ = useQuery({
@@ -55,11 +55,6 @@ export default function RepoPage() {
   });
   const currentPath = currentRepoQ.data?.path ?? null;
   const rootsQ = useQuery({ queryKey: ["scan_roots"], queryFn: listScanRoots, staleTime: 60_000 });
-  const recentQ = useQuery({
-    queryKey: ["recent_repos"],
-    queryFn: listRecentRepos,
-    staleTime: 30_000,
-  });
   const reposQ = useQuery({
     queryKey: ["repos", rootsQ.data],
     queryFn: () => discoverRepos(rootsQ.data ?? [], 4),
@@ -226,6 +221,41 @@ export default function RepoPage() {
         </div>
       </section>
 
+      {/* 扫描目录是“自动发现仓库”的来源配置,独立于顶部最近打开历史。 */}
+      <section className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <FolderOpen className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-medium">{t("repo.scanRoots.summaryTitle")}</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {t("repo.scanRoots.summary", {
+              roots: (rootsQ.data ?? []).length,
+              repos: reposQ.data?.length ?? 0,
+            })}
+            {reposQ.isFetching && ` · ${t("repo.scanRoots.scanning")}`}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => qc.invalidateQueries({ queryKey: ["repos"] })}
+            disabled={reposQ.isFetching}
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-muted disabled:opacity-50"
+          >
+            <RefreshCw className={cn("h-3 w-3", reposQ.isFetching && "animate-spin")} />
+            {t("repo.scanRoots.rescan")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setScanRootsOpen(true)}
+            className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            {t("repo.scanRoots.manage")}
+          </button>
+        </div>
+      </section>
+
       {/* 主区:全部仓库。每行两个显式动作 —— 「加入/已加入」(纳入跨仓聚合)、「查看」(进该仓单仓视图)。 */}
       <section className="rounded-lg border border-border bg-card p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
@@ -307,126 +337,88 @@ export default function RepoPage() {
         </ul>
       </section>
 
-      {/* 次要区(折叠):扫描目录管理 + 最近打开。默认收起,让仓库列表占据主视觉。 */}
-      <details className="group rounded-lg border border-border bg-card">
-        <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium">
-          <span className="flex items-center gap-2">
-            <FolderOpen className="h-4 w-4 text-muted-foreground" />
-            {t("repo.manage.title")}
-          </span>
-          <span className="text-[11px] font-normal text-muted-foreground">
-            {t("repo.manage.rootCount", { n: (rootsQ.data ?? []).length })}
-          </span>
-        </summary>
-        <div className="space-y-4 border-t border-border p-4">
-          {/* 扫描根目录 */}
-          <div>
-            <h3 className="mb-2 text-xs font-medium text-muted-foreground">
-              {t("repo.scanRoots.title")}
-            </h3>
-            {(rootsQ.data ?? []).length === 0 && (
-              <p className="mb-2 text-xs text-muted-foreground">
-                {t("repo.scanRoots.emptyHint")} <span className="font-mono">D:\script</span>。
-              </p>
-            )}
-            <ul className="mb-3 space-y-1">
-              {(rootsQ.data ?? []).map((r) => (
-                <li
-                  key={r}
-                  className="flex items-center justify-between rounded-sm border border-border px-2 py-1 text-xs dark:border-border"
-                >
-                  <span className="truncate font-mono">{r}</span>
-                  <button
-                    onClick={() => removeRoot(r)}
-                    className="ml-2 inline-flex items-center gap-1 rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-rose-500 dark:hover:bg-muted"
-                    title={t("repo.scanRoots.remove")}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <button
-                  onClick={async () => {
-                    try {
-                      const picked = await pickDirectory(t("repo.scanRoots.pickDialogTitle"));
-                      if (picked) setNewRoot(picked);
-                    } catch (e) {
-                      toast.error(t("repo.toast.openPickerFailed"), {
-                        description: (e as Error).message,
-                      });
-                    }
-                  }}
-                  className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted dark:border-border dark:hover:bg-muted"
-                >
-                  <FolderOpen className="h-3 w-3" /> {t("repo.scanRoots.pickDir")}
-                </button>
-                <div className="flex-1 truncate rounded-sm border border-dashed border-border bg-card px-2 py-1 font-mono text-xs text-muted-foreground dark:border-border dark:bg-card dark:text-neutral-300">
-                  {newRoot.trim() ? (
-                    newRoot
-                  ) : (
-                    <span className="text-muted-foreground">{t("repo.scanRoots.noDirPicked")}</span>
-                  )}
-                </div>
-                <button
-                  onClick={addRoot}
-                  disabled={!newRoot.trim() || setRootsM.isPending}
-                  className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                >
-                  <Plus className="h-3 w-3" /> {t("repo.scanRoots.add")}
-                </button>
-              </div>
-              <details className="text-[11px] text-muted-foreground">
-                <summary className="cursor-pointer">{t("repo.scanRoots.pasteAdvanced")}</summary>
-                <input
-                  value={newRoot}
-                  onChange={(e) => setNewRoot(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addRoot()}
-                  placeholder={t("repo.scanRoots.pastePlaceholder")}
-                  className="mt-1 w-full rounded-sm border border-border bg-card px-2 py-1 font-mono text-xs dark:border-border dark:bg-card"
-                />
-              </details>
+      <Dialog
+        open={scanRootsOpen}
+        onOpenChange={setScanRootsOpen}
+        title={t("repo.scanRoots.manageTitle")}
+        description={t("repo.scanRoots.manageDescription")}
+        size="md"
+        footer={
+          <button
+            type="button"
+            onClick={() => setScanRootsOpen(false)}
+            className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted"
+          >
+            {t("repo.scanRoots.close")}
+          </button>
+        }
+      >
+        {(rootsQ.data ?? []).length === 0 && (
+          <p className="mb-3 text-xs text-muted-foreground">
+            {t("repo.scanRoots.emptyHint")} <span className="font-mono">D:\script</span>。
+          </p>
+        )}
+        <ul className="mb-4 space-y-1">
+          {(rootsQ.data ?? []).map((r) => (
+            <li
+              key={r}
+              className="flex items-center justify-between rounded-sm border border-border px-2 py-1.5 text-xs"
+            >
+              <span className="truncate font-mono">{r}</span>
+              <button
+                type="button"
+                onClick={() => removeRoot(r)}
+                disabled={setRootsM.isPending}
+                className="ml-2 inline-flex items-center rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-danger disabled:opacity-50"
+                title={t("repo.scanRoots.remove")}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const picked = await pickDirectory(t("repo.scanRoots.pickDialogTitle"));
+                  if (picked) setNewRoot(picked);
+                } catch (e) {
+                  toast.error(t("repo.toast.openPickerFailed"), {
+                    description: (e as Error).message,
+                  });
+                }
+              }}
+              className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted"
+            >
+              <FolderOpen className="h-3 w-3" /> {t("repo.scanRoots.pickDir")}
+            </button>
+            <div className="min-w-0 flex-1 truncate rounded-sm border border-dashed border-border px-2 py-1 font-mono text-xs text-muted-foreground">
+              {newRoot.trim() || t("repo.scanRoots.noDirPicked")}
             </div>
+            <button
+              type="button"
+              onClick={addRoot}
+              disabled={!newRoot.trim() || setRootsM.isPending}
+              className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              <Plus className="h-3 w-3" /> {t("repo.scanRoots.add")}
+            </button>
           </div>
-
-          {/* 最近打开(快速重设下钻焦点) */}
-          {(recentQ.data?.length ?? 0) > 0 && (
-            <div>
-              <h3 className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                <Clock className="h-3.5 w-3.5" /> {t("repo.recent.title")}
-              </h3>
-              <ul className="space-y-1">
-                {(recentQ.data ?? []).slice(0, 5).map((p) => {
-                  const isCurrent = !!currentPath && currentPath.toLowerCase() === p.toLowerCase();
-                  return (
-                    <li key={p}>
-                      <button
-                        onClick={() => pickM.mutate(p)}
-                        disabled={isCurrent || (pickM.isPending && pickM.variables === p)}
-                        className={cn(
-                          "flex w-full items-center justify-between rounded-sm border px-2 py-1.5 text-left text-xs",
-                          isCurrent
-                            ? "border-primary bg-primary/10 dark:border-primary dark:bg-primary/10"
-                            : "border-border hover:bg-muted dark:border-border dark:hover:bg-muted",
-                        )}
-                      >
-                        <span className="truncate">{p}</span>
-                        {isCurrent ? (
-                          <Badge tone="info">{t("repo.current")}</Badge>
-                        ) : (
-                          <span className="text-muted-foreground">{t("repo.recent.open")}</span>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
+          <details className="text-[11px] text-muted-foreground">
+            <summary className="cursor-pointer">{t("repo.scanRoots.pasteAdvanced")}</summary>
+            <input
+              value={newRoot}
+              onChange={(e) => setNewRoot(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addRoot()}
+              placeholder={t("repo.scanRoots.pastePlaceholder")}
+              className="mt-1 w-full rounded-sm border border-border bg-card px-2 py-1 font-mono text-xs"
+            />
+          </details>
         </div>
-      </details>
+      </Dialog>
     </div>
   );
 }
