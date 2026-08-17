@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
-![Version](https://img.shields.io/badge/version-v0.4.0-brightgreen)
+![Version](https://img.shields.io/badge/version-v0.5.0-brightgreen)
 [English](README.md)
 
 </div>
@@ -64,7 +64,7 @@ pnpm tauri:dev
 
 ## 当前状态
 
-**Early access,当前版本为 [v0.4.0](https://github.com/bujueyunjian/git-ai-studio/releases/tag/v0.4.0)。** 项目从 2026 年 5 月起已经面向 macOS、Linux、Windows 发布 10 个公开版本,开发过程、Release 历史和 issue 跟踪均公开;v1.0 仍以更广泛的真实用户验证为目标。
+**Early access,当前版本为 [v0.5.0](https://github.com/bujueyunjian/git-ai-studio/releases/tag/v0.5.0)。** 项目从 2026 年 5 月起已经面向 macOS、Linux、Windows 发布 11 个公开版本,开发过程、Release 历史和 issue 跟踪均公开;v1.0 仍以更广泛的真实用户验证为目标。
 
 v1.0 前计划完成:
 

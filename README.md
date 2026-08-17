@@ -8,7 +8,7 @@ A free desktop dashboard for AI code authorship — for macOS, Linux, and Window
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
-![Version](https://img.shields.io/badge/version-v0.4.0-brightgreen)
+![Version](https://img.shields.io/badge/version-v0.5.0-brightgreen)
 [简体中文](README.zh-CN.md)
 
 </div>
@@ -64,7 +64,7 @@ pnpm tauri:dev
 
 ## Status
 
-**Early access. Current version: [v0.4.0](https://github.com/bujueyunjian/git-ai-studio/releases/tag/v0.4.0).** The project has shipped 10 public releases for macOS, Linux, and Windows since May 2026. Development, release history, and issue tracking are public; v1.0 remains the milestone for broader user validation.
+**Early access. Current version: [v0.5.0](https://github.com/bujueyunjian/git-ai-studio/releases/tag/v0.5.0).** The project has shipped 11 public releases for macOS, Linux, and Windows since May 2026. Development, release history, and issue tracking are public; v1.0 remains the milestone for broader user validation.
 
 Before v1.0, the project aims to complete:
 

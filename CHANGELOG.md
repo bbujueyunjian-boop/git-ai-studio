@@ -8,6 +8,16 @@ Version bumps are manual — see [CONTRIBUTING.md](CONTRIBUTING.md#releasing-a-n
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-17
+
+### Added
+
+- The global repository switcher now lets users clear recent repository history after confirmation without removing source code, scan roots, the Dashboard aggregate set, or the currently selected repository.
+
+### Changed
+
+- Repository management now keeps the active scan scope visible and moves scan-root editing into a dedicated dialog. The duplicate recent-repository list was removed from the Repository page so recent history has a single home in the global switcher.
+
 ## [0.4.0] - 2026-08-15
 
 ### Added
@@ -116,7 +126,8 @@ Version bumps are manual — see [CONTRIBUTING.md](CONTRIBUTING.md#releasing-a-n
 - Self-hosted hook server (Windows scheduled task + VBS shim + Node HTTP server). Hooks now go exclusively through the official `git ai install-hooks`.
 - Feishu webhook push (replaced by OS-native notifications).
 
-[Unreleased]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.3.6...v0.4.0
 [0.3.6]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.3.5...v0.3.6
 [0.3.2]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.3.1...v0.3.2
