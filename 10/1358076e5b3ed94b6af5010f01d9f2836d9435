@@ -1,0 +1,40 @@
+src/i18n/locales/en.json
+  s_701674af09ebb1::t_54db7718a2396a 1321-1326,1516-1522,1537
+src/pages/Repo.tsx
+  s_701674af09ebb1::t_dad52d2ecd2ced 22,48,224-258,340-399,401-408,410-419,421
+src/lib/api.ts
+  s_701674af09ebb1::t_b4a550a02060c6 84
+src-tauri/src/lib.rs
+  s_701674af09ebb1::t_b4a550a02060c6 172
+src/i18n/locales/zh-CN.json
+  s_701674af09ebb1::t_54db7718a2396a 1321-1326,1516-1522,1537
+src-tauri/src/commands/repo.rs
+  s_701674af09ebb1::t_b4a550a02060c6 145-161,308-309,327-342
+  s_903932cf21b35b::t_8d443ae80e04df 343
+src/components/Layout/TopBar.tsx
+  s_701674af09ebb1::t_f316e6844e1728 2-11,17,77,82-94,114-120,139-150,152,168-191
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "101358076e5b3ed94b6af5010f01d9f2836d9435",
+  "prompts": {},
+  "sessions": {
+    "s_701674af09ebb1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a008f8-dd53-76f1-9cd4-d5927381532a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    },
+    "s_903932cf21b35b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0044e-4604-78d0-881f-4c7608e26567",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}
