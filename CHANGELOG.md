@@ -8,6 +8,19 @@ Version bumps are manual — see [CONTRIBUTING.md](CONTRIBUTING.md#releasing-a-n
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-08
+
+### Fixed
+
+- Uninstall now runs the official hook removal command and keeps the installation when hook cleanup fails.
+- Disabling or updating Claude hooks preserves user hooks in the same matcher group and retains the original configuration backup.
+- Captured commands now terminate their child process on timeout or cancellation; the timeout also covers blocked input and output.
+- Checkpoints refresh when switching repositories without leaving the page.
+- Daemon diagnostics accept unlocked residual lock files as idle and no longer kill processes or delete runtime files when the lock holder is unknown.
+- Closing the main window in exit mode now exits the application even when the hidden desktop companion window exists; tray mode continues to support restoring the main window.
+- Invalid or unreadable configuration files now report errors instead of being overwritten with defaults; git-ai configuration updates require a successful backup.
+- Codex diagnostics respect the explicitly selected `hooks_json` format as well as the default inline TOML format.
+
 ## [0.5.0] - 2026-08-17
 
 ### Added
@@ -126,7 +139,8 @@ Version bumps are manual — see [CONTRIBUTING.md](CONTRIBUTING.md#releasing-a-n
 - Self-hosted hook server (Windows scheduled task + VBS shim + Node HTTP server). Hooks now go exclusively through the official `git ai install-hooks`.
 - Feishu webhook push (replaced by OS-native notifications).
 
-[Unreleased]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.3.6...v0.4.0
 [0.3.6]: https://github.com/bujueyunjian/git-ai-studio/compare/v0.3.5...v0.3.6
