@@ -133,8 +133,13 @@ pub fn apply_state(
 }
 
 /// 启动时按 settings 决定是否恢复 watcher。
-pub fn restore_on_startup(app: &AppHandle, state: &tauri::State<'_, AppState>) {
-    let s = AppSettings::load();
+pub fn restore_on_startup(
+    app: &AppHandle,
+    state: &tauri::State<'_, AppState>,
+) -> crate::error::Result<()> {
+    // 1. 读取有效配置，读取失败交由启动入口处理
+    let s = AppSettings::load()?;
+    // 2. 根据保存的开关恢复上次仓库监听
     let low_ai_enabled = s.notifications.low_ai_share.enabled;
     // 默认 true:realtime_enabled = None / true 都视为开启
     let realtime_enabled = s
@@ -143,11 +148,12 @@ pub fn restore_on_startup(app: &AppHandle, state: &tauri::State<'_, AppState>) {
         .realtime_enabled
         .unwrap_or(true);
     if !(low_ai_enabled && realtime_enabled) {
-        return;
+        return Ok(());
     }
     if let Some(repo_path) = s.last_repo.as_deref() {
         apply_state(app, state, Some(repo_path), true);
     }
+    Ok(())
 }
 
 fn spawn_watcher(app: AppHandle, repo_path: &str) -> Result<NotesWatcherHandle, String> {

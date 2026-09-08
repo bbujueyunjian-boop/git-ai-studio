@@ -3,7 +3,7 @@
 //! - 保留 hooks 段之外的所有字段(permissions / theme / mcpServers 等)。
 //! - 在 PreToolUse / PostToolUse 中:
 //!   - 仅识别"git-ai owned"条目(含 `checkpoint claude`)
-//!   - 同 matcher 下若已有 git-ai owned 条目 → in-place 替换;无 → 在头部追加
+//!   - 已有 git-ai owned 条目时只替换内层 hook;无 → 在头部追加 matcher 分组
 //!   - 其它 hook 条目(cc-switch / 用户写的)**不动**
 
 use std::fs;
@@ -116,13 +116,14 @@ fn write_official(
     Ok(())
 }
 
+/// 更新首个已含 git-ai 的分组中的自有 hook,保留分组属性与同组用户 hook。
 fn upsert_git_ai_owned(
     arr: &mut Vec<Value>,
     stage: &str,
     new_block: Value,
     report: &mut MergeReport,
 ) {
-    // 遍历找出含 git-ai owned hook 的 matcher block(若有)
+    // 1. 定位已包含 git-ai hook 的分组。
     let mut idx_found: Option<usize> = None;
     for (i, block) in arr.iter().enumerate() {
         let inner = block.get("hooks").and_then(|v| v.as_array());
@@ -132,10 +133,19 @@ fn upsert_git_ai_owned(
             break;
         }
     }
+    // 2. 只更新自有 hook;首次安装时追加完整分组。
     match idx_found {
         Some(i) => {
-            if arr[i] != new_block {
-                arr[i] = new_block;
+            let replacement = &new_block["hooks"][0];
+            let inner = arr[i]["hooks"].as_array_mut().unwrap();
+            let mut updated = false;
+            for hook in inner.iter_mut() {
+                if is_git_ai_owned(hook) && hook != replacement {
+                    *hook = replacement.clone();
+                    updated = true;
+                }
+            }
+            if updated {
                 report.changed = true;
                 report.updated.push(stage.into());
             }
@@ -148,16 +158,25 @@ fn upsert_git_ai_owned(
     }
 }
 
+/// 删除分组内的 git-ai hook,仅移除因本次清理而变空的分组。
 fn remove_git_ai_owned(arr: &mut Vec<Value>, stage: &str, report: &mut MergeReport) {
-    let before = arr.len();
-    arr.retain(|block| {
-        let inner = block.get("hooks").and_then(|v| v.as_array());
-        match inner {
-            Some(inner) => !inner.iter().any(is_git_ai_owned),
-            None => true,
+    // 1. 保留每个分组的用户 hook 和附加属性。
+    let mut removed = false;
+    arr.retain_mut(|block| {
+        let Some(inner) = block.get_mut("hooks").and_then(Value::as_array_mut) else {
+            return true;
+        };
+        let before = inner.len();
+        inner.retain(|hook| !is_git_ai_owned(hook));
+        if inner.len() == before {
+            return true;
         }
+        removed = true;
+        !inner.is_empty()
     });
-    if arr.len() != before {
+
+    // 2. 同组用户 hook 留存时,分组数量未变也需要报告已修改。
+    if removed {
         report.changed = true;
         report.removed.push(stage.into());
     }
@@ -276,5 +295,88 @@ mod tests {
         let raw = fs::read_to_string(&p).unwrap();
         assert!(!raw.contains("checkpoint claude"));
         assert!(raw.contains("echo user"));
+    }
+
+    /// 上游复用通配 matcher 安装时,停用必须保留同组用户 hook 和备份原文。
+    #[test]
+    #[serial]
+    fn none_mode_preserves_mixed_groups_and_backup() {
+        // 1. 模拟上游在已有用户分组内追加 git-ai hook 的正常安装结果。
+        let _g = setup();
+        let p = claude_settings_json();
+        let user_hook = json!({"type": "command", "command": "echo user", "timeout": 15});
+        let prompt_hook = json!({"type": "prompt", "prompt": "Review the edit"});
+        let owned_hook =
+            json!({"type": "command", "command": "/g/git-ai checkpoint claude --hook-input stdin"});
+        let original = json!({
+            "permissions": {"deny": ["x"]},
+            "hooks": {
+                "PreToolUse": [
+                    {"matcher": "*", "custom": {"owner": "user"}, "hooks": [user_hook.clone(), owned_hook.clone(), prompt_hook.clone(), owned_hook.clone()]},
+                    {"matcher": "Bash", "hooks": [owned_hook.clone()]},
+                    {"matcher": "Read", "hooks": []}
+                ],
+                "PostToolUse": [
+                    {"matcher": "*", "hooks": [owned_hook, user_hook.clone()]}
+                ]
+            }
+        });
+        let original_bytes = serde_json::to_vec_pretty(&original).unwrap();
+        fs::write(&p, &original_bytes).unwrap();
+
+        // 2. 停用时只移除 git-ai hook,原本就空的用户分组保持原状。
+        let report = merge_to_mode(HooksMode::None, None).unwrap();
+        let actual: Value = serde_json::from_slice(&fs::read(&p).unwrap()).unwrap();
+        assert_eq!(
+            actual,
+            json!({
+                "permissions": {"deny": ["x"]},
+                "hooks": {
+                    "PreToolUse": [
+                        {"matcher": "*", "custom": {"owner": "user"}, "hooks": [user_hook.clone(), prompt_hook]},
+                        {"matcher": "Read", "hooks": []}
+                    ],
+                    "PostToolUse": [{"matcher": "*", "hooks": [user_hook]}]
+                }
+            })
+        );
+        assert!(report.changed);
+        assert_eq!(report.removed, ["PreToolUse", "PostToolUse"]);
+
+        // 3. 自动备份逐字节保留原始配置。
+        let backups = backups::list_backups().unwrap();
+        assert_eq!(backups.len(), 1);
+        assert_eq!(fs::read(&backups[0].path).unwrap(), original_bytes);
+    }
+
+    /// 更新 git-ai 命令时也只能替换自有 hook,不能覆盖同组用户配置。
+    #[test]
+    #[serial]
+    fn official_mode_preserves_mixed_group_when_updating() {
+        // 1. 已有分组同时包含用户 hook 和旧 git-ai 路径。
+        let _g = setup();
+        let p = claude_settings_json();
+        let user_hook = json!({"type": "command", "command": "echo user", "timeout": 15});
+        fs::write(&p, serde_json::to_vec(&json!({"hooks": {"PostToolUse": [
+            {"matcher": "*", "custom": true, "hooks": [
+                user_hook.clone(),
+                {"type": "command", "command": "/old/git-ai checkpoint claude --hook-input stdin"}
+            ]}
+        ]}})).unwrap()).unwrap();
+
+        // 2. 更新命令后,分组规则、属性及用户 hook 完全保留。
+        let report = merge_to_mode(HooksMode::Official, Some("/new/git-ai")).unwrap();
+        let actual: Value = serde_json::from_slice(&fs::read(&p).unwrap()).unwrap();
+        assert_eq!(
+            actual["hooks"]["PostToolUse"],
+            json!([
+                {"matcher": "*", "custom": true, "hooks": [
+                    user_hook,
+                    {"type": "command", "command": "/new/git-ai checkpoint claude --hook-input stdin"}
+                ]}
+            ])
+        );
+        assert_eq!(report.updated, ["PostToolUse"]);
+        assert!(report.changed);
     }
 }

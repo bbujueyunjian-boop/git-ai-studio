@@ -19,7 +19,7 @@
     ],
     "uninstallRemoved": [
       "Removes the ~/.git-ai/ directory (binary, config.json, cached working_logs)",
-      "Runs git-ai remove-hooks to clean up registered AI agent hooks",
+      "Runs git-ai uninstall-hooks --dry-run=false to clean up registered AI agent hooks",
       "Removes the git proxy shim (~/.git-ai/bin/git[.exe])"
     ],
     "uninstallKept": [
@@ -46,26 +46,16 @@
     }
   },
   "daemon": {
-    "staleLock": {
-      "title": "Stale git-ai daemon lock",
-      "hint": "The previous daemon process exited abnormally without releasing daemon.lock. Every git-ai client command (including hook-triggered checkpoints) is now permanently blocked with \"daemon startup blocked: lock held at ...\".",
-      "stepLabel": "Action: delete the two files below and retry the hook — the next git-ai command will spin up a fresh daemon automatically.",
-      "copyCmdLabel": "Copy cleanup command",
-      "lastPidTemplate": "Last daemon PID {{pid}} (no longer alive)",
-      "copySuccess": "Cleanup command copied"
-    },
     "blockedLock": {
-      "title": "git-ai daemon lock is still held",
-      "hint": "daemon.lock is still held by git-ai.exe, but daemon.pid.json is missing or unusable. Deleting the lock directly will fail and every git-ai client command will keep reporting \"daemon startup blocked: lock held at ...\".",
-      "stepLabel": "Action: kill the git-ai.exe holding the lock first, then delete daemon.lock / daemon.pid.json, then retry your git-ai command.",
+      "title": "git-ai daemon lock is unavailable",
+      "hint": "daemon.lock cannot be opened exclusively, and daemon.pid.json has no usable live PID. Check file permissions and identify the process holding the lock.",
+      "stepLabel": "Try the official graceful shutdown command. If it fails, check the actual lock holder and file permissions before checking the status again.",
       "copyCmdLabel": "Copy diagnostic commands",
-      "lastPidUnavailableTemplate": "PID {{pid}} recorded in daemon.pid.json is currently unavailable, but the lock is still held",
-      "candidatePidsTemplate": "Currently found git-ai.exe PID {{pids}}",
+      "lastPidUnavailableTemplate": "PID {{pid}} recorded in daemon.pid.json is unavailable, and the lock cannot be opened exclusively",
       "copySuccess": "Troubleshooting command copied",
-      "noPidTitle": "No definitive git-ai.exe PID found; please manually kill the lock-holding process first",
-      "confirmTitle": "On confirm, kill git-ai.exe and clean up the lock/pid files"
+      "confirmTitle": "Check whether the daemon has recovered; stop if the lock holder remains unknown"
     },
-    "repairNow": "Handle now"
+    "repairNow": "Check status again"
   },
   "stats": {
     "workingScopeHint": "Note: this is the current repo's uncommitted changes; the Dashboard's \"Uncommitted\" card aggregates your selected repo set (which may not include this repo).",
@@ -864,26 +854,17 @@
     },
     "daemonRepair": {
       "selfHealed": {
-        "title": "daemon recovered on its own; no manual action needed",
+        "title": "The daemon status is now normal",
         "runningDescTemplate": "PID {{pid}} is currently running; the alert was likely a transient state during a daemon restart window.",
-        "idleDesc": "The lock has been cleared; the daemon is now idle."
-      },
-      "success": {
-        "title": "git-ai daemon lock handled",
-        "descTemplate": "Killed {{killed}} process(es) / removed {{removed}} file(s)"
+        "idleDesc": "The daemon is idle. An unlocked residual lock file is normal."
       },
       "notify": {
-        "successTitle": "git-ai daemon handled successfully",
         "errorBodyTemplate": "{{health}}\\nError: {{message}}"
       },
       "error": {
-        "title": "git-ai daemon handling failed"
+        "title": "The git-ai daemon status is still abnormal"
       },
       "format": {
-        "killedPidsTemplate": "Killed PIDs: {{pids}}",
-        "none": "none",
-        "removedPathsTemplate": "Removed files: {{paths}}",
-        "afterStateTemplate": "State after: {{kind}}",
         "beforeUnknown": "State before: unknown",
         "beforeIdle": "State before: idle",
         "beforeRunningTemplate": "State before: running\\nPID: {{pid}}",
@@ -901,24 +882,14 @@
       "errorTemplate": "Failed to fix {{agent}}"
     },
     "codexLegacy": {
-      "title": "Codex hook is in the legacy format",
-      "bodyTemplate": "Detected git-ai {{version}}, which writes Codex hooks to ~/.codex/hooks.json (legacy). Studio needs the inline hooks in ~/.codex/config.toml from git-ai 1.4.8+. Please upgrade git-ai, then click \"Fix this\" again.",
+      "title": "Codex hooks are not configured and git-ai is outdated",
+      "bodyTemplate": "Detected git-ai {{version}} with Codex hooks not fully configured. Upgrade git-ai, then click \"Fix this\" again. Studio checks config.toml or hooks.json according to the format selected by git-ai.",
       "cta": "Upgrade git-ai on Install"
-    },
-    "daemonRepairDialog": {
-      "title": "Confirm handling the git-ai daemon lock",
-      "description": "This will handle the git-ai daemon's runtime lock/pid files. If the lock is still held by a process, the git-ai processes listed in this dialog will be killed first.",
-      "confirm": "Confirm"
     },
     "fixMissingDialog": {
       "title": "Fix missing hooks",
       "description": "Write the official git-ai hooks for all installed-but-unconfigured AI agents in one go.",
       "confirmLabel": "Start fixing"
-    },
-    "daemonRepairConfirm": {
-      "willKill": "Will kill processes",
-      "willDelete": "Will delete files",
-      "note": "After this, the next git-ai client command will automatically spawn a new daemon."
     },
     "gitAiNotFound": {
       "title": "git-ai not found",

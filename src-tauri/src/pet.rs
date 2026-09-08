@@ -52,9 +52,12 @@ fn default_corner_position(win: &tauri::WebviewWindow) -> Option<PhysicalPositio
 }
 
 /// 启动时按 [`AppSettings::pet`] 的 `enabled` 恢复显示(被动,不弹通知,避免开机噪声)。
-pub fn restore_on_startup(app: &AppHandle) {
-    let s = AppSettings::load();
+pub fn restore_on_startup(app: &AppHandle) -> crate::error::Result<()> {
+    // 1. 读取有效配置，读取失败交由启动入口处理
+    let s = AppSettings::load()?;
+    // 2. 按保存的宠物设置恢复显示
     if s.pet.enabled {
         apply_visibility(app, true, s.pet.position);
     }
+    Ok(())
 }

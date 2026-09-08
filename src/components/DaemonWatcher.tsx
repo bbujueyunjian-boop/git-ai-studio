@@ -23,7 +23,7 @@ export function DaemonWatcher({ settings }: Props) {
   // 单一总开关:与 LowAiShareWatcher 一致 — 关闭即停止轮询与告警。
   const enabled = settings?.notifications?.daemon_unhealthy_alert ?? false;
   const seenIssueKeysRef = useRef(new Set<string>());
-  // 连续观察同一 issueKey 才告警 — 重启电脑后 daemon 启动竞态期会瞬时出现 stale_lock,
+  // 连续观察同一 issueKey 才告警 — 重启电脑后 daemon 启动竞态期会瞬时出现 blocked_lock_unknown_pid,
   // 几秒后 daemon 写入新 pid.json 又恢复 running,这里要求"至少连续 2 次同一 issue"才推送 OS 通知。
   const consecutiveIssueRef = useRef<{ issueKey: string; count: number } | null>(null);
 
@@ -76,7 +76,7 @@ export function DaemonWatcher({ settings }: Props) {
       !decision.trigger ||
       !decision.issueKey ||
       !health ||
-      (health.kind !== "stale_lock" && health.kind !== "blocked_lock_unknown_pid")
+      health.kind !== "blocked_lock_unknown_pid"
     ) {
       return;
     }
@@ -95,16 +95,12 @@ export function DaemonWatcher({ settings }: Props) {
   return null;
 }
 
+/** 为未知持锁者生成告警，仅展示已观测的文件和 PID 元信息。 */
 function buildDaemonAlertPayload(
-  health: Extract<DaemonHealth, { kind: "stale_lock" | "blocked_lock_unknown_pid" }>,
+  health: Extract<DaemonHealth, { kind: "blocked_lock_unknown_pid" }>,
 ): { title: string; body: string } {
-  const title =
-    health.kind === "stale_lock"
-      ? i18n.t("daemon.staleLock.title")
-      : i18n.t("daemon.blockedLock.title");
-  const body =
-    health.kind === "stale_lock"
-      ? `lock: ${health.lock_path}\npid metadata: ${health.pid_meta_path}\nlast pid: ${health.last_pid ?? "unknown"}`
-      : `lock: ${health.lock_path}\npid metadata: ${health.pid_meta_path}\nlast pid: ${health.last_pid ?? "unknown"}\ncandidate pids: ${health.candidate_pids.length > 0 ? health.candidate_pids.join(", ") : "none"}`;
+  // 1. 提供排查位置，不把同名进程当作持锁者。
+  const title = i18n.t("daemon.blockedLock.title");
+  const body = `lock: ${health.lock_path}\npid metadata: ${health.pid_meta_path}\nlast pid: ${health.last_pid ?? "unknown"}`;
   return { title, body };
 }

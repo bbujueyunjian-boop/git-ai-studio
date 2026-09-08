@@ -24,8 +24,10 @@ export interface DaemonNotifyDecision {
     | "user_dismissed";
 }
 
+/** 仅为持锁者未知的异常生成告警键，空闲与正常运行不告警。 */
 export function daemonIssueKey(health: DaemonHealth): string | null {
-  if (health.kind === "stale_lock" || health.kind === "blocked_lock_unknown_pid") {
+  // 1. 只对需要排查的运行状态分配稳定键。
+  if (health.kind === "blocked_lock_unknown_pid") {
     return `${health.kind}:${health.lock_path}`;
   }
   return null;
@@ -57,7 +59,7 @@ export const DAEMON_RESET_EVENT = "git-ai-studio:daemon-reset";
 
 /**
  * 清除所有 daemon dismiss 记录。daemon 的 dismiss key 是 per-issueKey 形式
- * (`...dismissedUntil.stale_lock:<path>` / `...blocked_lock_unknown_pid:<path>`),
+ * (`...dismissedUntil.blocked_lock_unknown_pid:<path>`),
  * 用户不会记得当时具体是哪个 issue,所以**全清** —— 扫描 localStorage 删所有
  * 带前缀的 key。
  */

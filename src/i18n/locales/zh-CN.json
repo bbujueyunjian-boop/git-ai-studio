@@ -19,7 +19,7 @@
     ],
     "uninstallRemoved": [
       "删除 ~/.git-ai/ 目录(二进制、config.json、缓存的 working_logs)",
-      "调用 git-ai remove-hooks 清理已注册的 AI agent hooks",
+      "调用 git-ai uninstall-hooks --dry-run=false 清理已注册的 AI agent hooks",
       "移除 git 代理 shim(~/.git-ai/bin/git[.exe])"
     ],
     "uninstallKept": [
@@ -46,26 +46,16 @@
     }
   },
   "daemon": {
-    "staleLock": {
-      "title": "git-ai daemon 僵尸 lock",
-      "hint": "上次 daemon 进程异常退出但没释放 daemon.lock。所有 git-ai client 命令(包括 hook 触发的 checkpoint)都会被一直阻塞,报 \"daemon startup blocked: lock held at ...\"。",
-      "stepLabel": "处置:删掉下面两个文件后重试 hook —— 下次 git-ai 命令会自动拉起一个新 daemon。",
-      "copyCmdLabel": "复制清理命令",
-      "lastPidTemplate": "上次 daemon PID {{pid}}(已不存活)",
-      "copySuccess": "清理命令已复制"
-    },
     "blockedLock": {
-      "title": "git-ai daemon lock 仍被占用",
-      "hint": "daemon.lock 仍被 git-ai.exe 持有,但 daemon.pid.json 缺失或不可用。此时直接删除 lock 会失败,所有 git-ai client 命令仍会报 \"daemon startup blocked: lock held at ...\"。",
-      "stepLabel": "处置:先结束持锁的 git-ai.exe,再删除 daemon.lock / daemon.pid.json,最后重试 git-ai 命令。",
+      "title": "git-ai daemon lock 当前不可用",
+      "hint": "无法独占打开 daemon.lock，且 daemon.pid.json 中没有可用的存活 PID。文件权限或未知持锁进程需要进一步排查。",
+      "stepLabel": "可先运行官方温和关闭命令。若命令失败，请核对实际持锁进程与文件权限，再重新检查状态。",
       "copyCmdLabel": "复制排查命令",
-      "lastPidUnavailableTemplate": "daemon.pid.json 记录的 PID {{pid}} 当前不可用,但 lock 仍被占用",
-      "candidatePidsTemplate": "当前发现 git-ai.exe PID {{pids}}",
+      "lastPidUnavailableTemplate": "daemon.pid.json 记录的 PID {{pid}} 当前不可用，且 lock 无法独占打开",
       "copySuccess": "排查命令已复制",
-      "noPidTitle": "未发现明确 git-ai.exe PID,请先手动结束持锁进程",
-      "confirmTitle": "确认后结束 git-ai.exe 并清理 lock/pid 文件"
+      "confirmTitle": "重新检查 daemon 是否已恢复；持锁者未知时停止处理"
     },
-    "repairNow": "立即处理"
+    "repairNow": "重新检查状态"
   },
   "stats": {
     "workingScopeHint": "注:这是「当前仓库」的未提交改动;Dashboard 的「本地未提交」卡统计的是你勾选的聚合集(可能不含本仓)。",
@@ -864,26 +854,17 @@
     },
     "daemonRepair": {
       "selfHealed": {
-        "title": "daemon 已自动恢复正常,无需手动处理",
+        "title": "daemon 当前状态正常",
         "runningDescTemplate": "当前 PID {{pid}} 正在运行,告警可能是 daemon 重启窗口期的瞬态状态。",
-        "idleDesc": "lock 已被清理,daemon 处于空闲态。"
-      },
-      "success": {
-        "title": "git-ai daemon lock 已处理",
-        "descTemplate": "结束 {{killed}} 个进程 / 清理 {{removed}} 个文件"
+        "idleDesc": "daemon 处于空闲态；未占用的残留 lock 属于正常状态。"
       },
       "notify": {
-        "successTitle": "git-ai daemon 处理成功",
         "errorBodyTemplate": "{{health}}\\n错误: {{message}}"
       },
       "error": {
-        "title": "git-ai daemon 处理失败"
+        "title": "git-ai daemon 状态仍异常"
       },
       "format": {
-        "killedPidsTemplate": "结束 PID: {{pids}}",
-        "none": "无",
-        "removedPathsTemplate": "删除文件: {{paths}}",
-        "afterStateTemplate": "处理后状态: {{kind}}",
         "beforeUnknown": "处理前状态: unknown",
         "beforeIdle": "处理前状态: idle",
         "beforeRunningTemplate": "处理前状态: running\\nPID: {{pid}}",
@@ -901,24 +882,14 @@
       "errorTemplate": "修复 {{agent}} 失败"
     },
     "codexLegacy": {
-      "title": "Codex hook 是旧格式(legacy)",
-      "bodyTemplate": "检测到 git-ai {{version}},它把 Codex hook 写在 ~/.codex/hooks.json(旧格式)。Studio 需要 git-ai 1.4.8+ 写进 ~/.codex/config.toml 的 inline hooks。请升级 git-ai 后重新点「修复此项」。",
+      "title": "Codex hooks 尚未配置，git-ai 版本较旧",
+      "bodyTemplate": "检测到 git-ai {{version}}，当前 Codex hooks 尚未完成配置。请先升级 git-ai，再重新点「修复此项」。Studio 会按 git-ai 选择的格式检查 config.toml 或 hooks.json。",
       "cta": "去 Install 升级 git-ai"
-    },
-    "daemonRepairDialog": {
-      "title": "确认处理 git-ai daemon lock",
-      "description": "该操作会处理 git-ai daemon 的运行态 lock/pid 文件;如果 lock 仍被进程占用,会先结束确认框中列出的 git-ai 进程。",
-      "confirm": "确认处理"
     },
     "fixMissingDialog": {
       "title": "修复缺失 hooks",
       "description": "对所有已安装但未配置的 AI agent 一次性写入官方 git-ai hooks。",
       "confirmLabel": "开始修复"
-    },
-    "daemonRepairConfirm": {
-      "willKill": "将结束进程",
-      "willDelete": "将删除文件",
-      "note": "完成后下次 git-ai client 命令会自动拉起新的 daemon。"
     },
     "gitAiNotFound": {
       "title": "未检测到 git-ai",

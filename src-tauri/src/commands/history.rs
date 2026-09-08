@@ -656,7 +656,7 @@ pub async fn get_aggregate_history(
     let now = Local::now();
     let (range_start, range_end) = time_range_bounds(&range, now);
 
-    let repos = crate::state::AppSettings::load().aggregate_repos;
+    let repos = crate::state::AppSettings::load()?.aggregate_repos;
     if repos.is_empty() {
         return Ok(AggregateHistoryResult::Degraded {
             reason: AggregateDegradedReason::NoReposSelected,
@@ -836,7 +836,7 @@ pub async fn get_aggregate_working_status(
     let started = Instant::now();
     let _ = &state; // 不读 current_repo / db:聚合集来自 settings,工作树状态不缓存
 
-    let repos = crate::state::AppSettings::load().aggregate_repos;
+    let repos = crate::state::AppSettings::load()?.aggregate_repos;
     if repos.is_empty() {
         return Ok(AggregateWorkingStatusResult::Degraded {
             reason: AggregateDegradedReason::NoReposSelected,

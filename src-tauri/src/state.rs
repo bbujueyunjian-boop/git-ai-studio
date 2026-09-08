@@ -241,23 +241,38 @@ impl CloseBehavior {
 }
 
 impl AppSettings {
+    /// 返回应用偏好文件的位置。
     pub fn config_path() -> PathBuf {
+        // 1. 定位应用数据目录中的配置文件
         crate::paths::studio_data_dir().join("config.json")
     }
 
-    pub fn load() -> Self {
-        let p = Self::config_path();
-        let raw = std::fs::read_to_string(&p).ok();
-        let mut s: Self = raw
-            .as_deref()
-            .and_then(|s| serde_json::from_str(s).ok())
-            .unwrap_or_default();
-        Self::migrate_in_place(&mut s);
-        s
+    /// 读取应用偏好；仅文件不存在时初始化默认配置，读取或解析失败原样返回错误。
+    pub fn load() -> crate::error::Result<Self> {
+        // 1. 从实际配置位置加载并执行现有字段迁移
+        Self::load_from_path(&Self::config_path())
+    }
+
+    /// 从指定文件读取偏好，供正式加载与隔离文件测试共用。
+    fn load_from_path(path: &std::path::Path) -> crate::error::Result<Self> {
+        // 1. 仅缺少文件属于首次启动；其它读取失败不得转成默认值
+        let raw = match std::fs::read_to_string(path) {
+            Ok(raw) => raw,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Self::default());
+            }
+            Err(error) => return Err(error.into()),
+        };
+
+        // 2. 严格解析后迁移历史字段，损坏内容保持原样
+        let mut settings: Self = serde_json::from_str(&raw)?;
+        Self::migrate_in_place(&mut settings);
+        Ok(settings)
     }
 
     /// 把旧顶层字段迁移到新嵌套位置。`load()` 启动时走它。
     pub fn migrate_in_place(s: &mut Self) {
+        // 1. 将历史开关移入通知配置，并从后续序列化结果移除旧字段
         if let Some(legacy) = s.cc_switch_auto_repair.take() {
             log::info!(
                 "config.json: 旧顶层 cc_switch_auto_repair={} 已迁移到 notifications.cc_switch_auto_repair",
@@ -267,18 +282,103 @@ impl AppSettings {
         }
     }
 
+    /// 保存已成功读取并修改的配置；序列化失败时不得以空内容覆盖文件。
     pub fn save(&self) -> std::io::Result<()> {
-        let p = Self::config_path();
-        if let Some(parent) = p.parent() {
+        // 1. 将配置写回实际配置位置
+        self.save_to_path(&Self::config_path())
+    }
+
+    /// 将配置序列化后写入指定文件，供正式保存与隔离文件测试共用。
+    fn save_to_path(&self, path: &std::path::Path) -> std::io::Result<()> {
+        // 1. 先完整序列化，确保失败不会截断原文件
+        let serialized = serde_json::to_vec_pretty(self).map_err(std::io::Error::other)?;
+
+        // 2. 创建首次启动需要的目录并保存配置
+        if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&p, serde_json::to_string_pretty(self).unwrap_or_default())
+        std::fs::write(path, serialized)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{AppSettings, CloseBehavior};
+
+    /// 首次启动只返回默认值，直到用户保存才创建配置文件。
+    #[test]
+    fn missing_settings_initialize_only_on_save() {
+        // 1. 验证缺失文件可以初始化，读取本身不会写盘
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("studio/config.json");
+        let settings = AppSettings::load_from_path(&path).unwrap();
+        assert!(settings.scan_roots.is_empty());
+        assert!(!path.exists());
+
+        // 2. 验证正常保存后可严格读取
+        settings.save_to_path(&path).unwrap();
+        assert!(AppSettings::load_from_path(&path).is_ok());
+    }
+
+    /// 修改单项偏好时保留已有有效字段及嵌套配置。
+    #[test]
+    fn valid_settings_update_preserves_other_fields() {
+        // 1. 准备包含多项偏好的合法配置
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(
+            &path,
+            r#"{"theme":"dark","scan_roots":["repo"],"notifications":{"low_ai_share":{"target_emails":["alice@example.com"]}}}"#,
+        )
+        .unwrap();
+
+        // 2. 仅更新关闭行为，再验证其余配置不丢失
+        let mut settings = AppSettings::load_from_path(&path).unwrap();
+        settings.close_behavior = Some("tray".to_string());
+        settings.save_to_path(&path).unwrap();
+        let saved = AppSettings::load_from_path(&path).unwrap();
+        assert_eq!(saved.theme.as_deref(), Some("dark"));
+        assert_eq!(saved.scan_roots, vec!["repo"]);
+        assert_eq!(
+            saved.notifications.low_ai_share.target_emails,
+            vec!["alice@example.com"]
+        );
+        assert_eq!(saved.close_behavior.as_deref(), Some("tray"));
+    }
+
+    /// 坏 JSON、非法 UTF-8 和错误字段类型均须中止读取，保留原字节。
+    #[test]
+    fn invalid_settings_fail_without_changing_original_bytes() {
+        // 1. 分别模拟真实配置损坏输入
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        for raw in [
+            b"{invalid".as_slice(),
+            b"{\"theme\":\"\xff\"}",
+            b"{\"unknown_field\":\"\xff\"}",
+            b"{\"scan_roots\":false}",
+        ] {
+            std::fs::write(&path, raw).unwrap();
+
+            // 2. 读取错误必须阻止后续修改和保存
+            let result = AppSettings::load_from_path(&path).and_then(|mut settings| {
+                settings.theme = Some("light".to_string());
+                settings.save_to_path(&path)?;
+                Ok(())
+            });
+            assert!(result.is_err());
+            assert_eq!(std::fs::read(&path).unwrap(), raw);
+        }
+    }
+
+    /// 配置路径是目录等读取异常不能被当作首次启动。
+    #[test]
+    fn settings_read_error_is_not_a_default_configuration() {
+        // 1. 目录存在但无法作为配置文件读取
+        let dir = tempfile::tempdir().unwrap();
+        assert!(AppSettings::load_from_path(dir.path()).is_err());
+        assert!(dir.path().is_dir());
+    }
 
     #[test]
     fn close_behavior_tray_string_maps_to_tray() {

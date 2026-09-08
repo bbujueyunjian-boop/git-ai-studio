@@ -26,12 +26,15 @@ pub async fn discover_repos(
     Ok(entries)
 }
 
+/// 验证并保存所选仓库；配置损坏或保存失败时不切换当前仓库。
 #[tauri::command]
 pub async fn select_repo(
     app: tauri::AppHandle,
     path: String,
     state: State<'_, AppState>,
 ) -> Result<RepoEntry, String> {
+    // 1. 读取有效配置并验证所选仓库
+    let mut settings = AppSettings::load()?;
     let normalized = normalize(&path);
     if !normalized.is_dir() {
         return Err(format!("目录不存在: {path}"));
@@ -47,7 +50,7 @@ pub async fn select_repo(
         })
         .ok_or_else(|| format!("不是一个 git 仓库(未发现 .git): {path}"))?;
 
-    // 选中后立刻同步查一次 dirty,失败保持 None
+    // 2. 选中后立刻同步查一次 dirty,失败保持 None
     entry.dirty = tokio::task::spawn_blocking({
         let p = std::path::PathBuf::from(&entry.path);
         move || repo::head::detect_dirty(&p)
@@ -56,24 +59,24 @@ pub async fn select_repo(
     .ok()
     .flatten();
 
+    // 3. 先保存仓库记录；失败时当前仓库仍保持原选择
+    settings.last_repo = Some(entry.path.clone());
+    settings.recent_repos.retain(|p| p != &entry.path);
+    settings.recent_repos.insert(0, entry.path.clone());
+    settings.recent_repos.truncate(5);
+    settings.save().map_err(|e| format!("写配置失败: {e}"))?;
+
+    // 4. 切换当前仓库并失效依赖缓存
     if let Ok(mut g) = state.current_repo.write() {
         *g = Some(entry.clone());
     }
     if let Ok(mut g) = state.diag_cache.write() {
         *g = None;
     }
-    // 切仓库后,前一仓库的 commit 列表必须作废,否则前端会看到旧仓库的 sha。
     if let Ok(mut g) = state.commits_cache.write() {
         *g = None;
     }
-    let mut settings = AppSettings::load();
-    settings.last_repo = Some(entry.path.clone());
-    settings.recent_repos.retain(|p| p != &entry.path);
-    settings.recent_repos.insert(0, entry.path.clone());
-    settings.recent_repos.truncate(5);
-    let _ = settings.save();
-
-    // 切仓后重启 refs/notes/ai watcher 指向新仓库(若用户开了实时低 AI 提醒)。
+    // 5. 切仓后重启 refs/notes/ai watcher 指向新仓库(若用户开了实时低 AI 提醒)。
     // realtime_enabled 默认 true,需要同时开了低 AI 总开关才会真正启动。
     let realtime_active = settings.notifications.low_ai_share.enabled
         && settings
@@ -137,9 +140,11 @@ pub async fn detect_dirty(path: String) -> Result<Option<bool>, String> {
         .map_err(|e| format!("dirty 探测失败: {e}"))
 }
 
+/// 读取最近打开的仓库，配置错误直接返回。
 #[tauri::command]
 pub async fn list_recent_repos() -> Result<Vec<String>, String> {
-    Ok(AppSettings::load().recent_repos)
+    // 1. 从有效配置读取最近仓库
+    Ok(AppSettings::load()?.recent_repos)
 }
 
 fn clear_recent_repo_history(settings: &mut AppSettings) -> usize {
@@ -153,20 +158,25 @@ fn clear_recent_repo_history(settings: &mut AppSettings) -> usize {
 /// 当前仓库与 `last_repo` 继续保留,避免“清历史”意外改变正在查看的仓库或下次启动恢复行为。
 #[tauri::command]
 pub async fn clear_recent_repos() -> Result<usize, String> {
-    let mut settings = AppSettings::load();
+    // 1. 读取有效配置后清空历史并保存
+    let mut settings = AppSettings::load()?;
     let cleared = clear_recent_repo_history(&mut settings);
     settings.save().map_err(|e| format!("写配置失败: {e}"))?;
     Ok(cleared)
 }
 
+/// 读取仓库扫描根目录，配置错误直接返回。
 #[tauri::command]
 pub async fn list_scan_roots() -> Result<Vec<String>, String> {
-    Ok(AppSettings::load().scan_roots)
+    // 1. 从有效配置读取扫描根目录
+    Ok(AppSettings::load()?.scan_roots)
 }
 
+/// 更新扫描根目录，保留已有配置中的其它偏好。
 #[tauri::command]
 pub async fn set_scan_roots(roots: Vec<String>) -> Result<(), String> {
-    let mut settings = AppSettings::load();
+    // 1. 读取有效配置后更新扫描根目录并保存
+    let mut settings = AppSettings::load()?;
     settings.scan_roots = roots;
     settings.save().map_err(|e| format!("写配置失败: {e}"))
 }
@@ -203,7 +213,8 @@ fn dedup_aggregate_paths(normalized: Vec<String>) -> Vec<String> {
 /// 读聚合仓库集合,逐个校验是否仍为合法 git 仓(失效项标注返回,不丢弃)。
 #[tauri::command]
 pub async fn get_aggregate_repos() -> Result<Vec<AggregateRepoEntry>, String> {
-    let paths = AppSettings::load().aggregate_repos;
+    // 1. 严格读取聚合集合后校验每个仓库
+    let paths = AppSettings::load()?.aggregate_repos;
     tokio::task::spawn_blocking(move || {
         paths
             .into_iter()
@@ -236,18 +247,21 @@ pub async fn get_aggregate_repos() -> Result<Vec<AggregateRepoEntry>, String> {
 /// **绝不触碰** current_repo / recent_repos(与下钻焦点正交,M1)。
 #[tauri::command]
 pub async fn set_aggregate_repos(repos: Vec<String>) -> Result<(), String> {
+    // 1. 规范化仓库路径并合并到有效配置
     let normalized: Vec<String> = repos
         .iter()
         .map(|r| normalize(r).display().to_string())
         .collect();
-    let mut settings = AppSettings::load();
+    let mut settings = AppSettings::load()?;
     settings.aggregate_repos = dedup_aggregate_paths(normalized);
     settings.save().map_err(|e| format!("写配置失败: {e}"))
 }
 
+/// 从有效配置恢复上次仓库；配置损坏时不恢复错误的默认仓库状态。
 #[tauri::command]
 pub async fn restore_last_repo(state: State<'_, AppState>) -> Result<Option<RepoEntry>, String> {
-    let settings = AppSettings::load();
+    // 1. 读取有效配置并验证上次仓库仍可访问
+    let settings = AppSettings::load()?;
     let Some(last) = settings.last_repo else {
         return Ok(None);
     };

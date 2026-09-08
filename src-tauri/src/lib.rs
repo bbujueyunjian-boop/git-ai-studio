@@ -34,11 +34,15 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, WindowEvent,
 };
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 /// 把当前 [`AppSettings::close_behavior`] 解析为 [`CloseBehavior`]。
 /// 每次窗口 close 实时读盘,而不是缓存到内存 —— 配置改了立刻生效,无需重启。
-fn current_close_behavior() -> CloseBehavior {
-    CloseBehavior::from_settings(AppSettings::load().close_behavior.as_deref())
+fn current_close_behavior() -> error::Result<CloseBehavior> {
+    // 1. 读取当前偏好；配置不可读时由窗口事件入口报告错误。
+    Ok(CloseBehavior::from_settings(
+        AppSettings::load()?.close_behavior.as_deref(),
+    ))
 }
 
 /// 把主窗口从托盘 / 隐藏态恢复并聚焦。
@@ -128,24 +132,37 @@ pub fn run() {
 
             // 根据 AppSettings 恢复 cc-switch 守护(用户上次开过就继续开)
             let state = app.state::<AppState>();
-            cc_switch_watcher::restore_on_startup(&app.handle().clone(), &state);
+            cc_switch_watcher::restore_on_startup(&app.handle().clone(), &state)?;
             // 同样恢复 refs/notes/ai 实时 watcher(用户开了低 AI 提醒 + realtime 时)
-            repo_notes_watcher::restore_on_startup(&app.handle().clone(), &state);
+            repo_notes_watcher::restore_on_startup(&app.handle().clone(), &state)?;
             // 桌面宠物:用户上次开过就恢复显示(被动,不弹通知)。详见 ADR-011。
-            pet::restore_on_startup(&app.handle().clone());
+            pet::restore_on_startup(&app.handle().clone())?;
 
             Ok(())
         })
         .on_window_event(|window, event| {
-            // 窗口关闭事件按 label 分流:
-            //   - main:按 Settings.close_behavior 决定 "exit"(默认,进程退出)或 "tray"(拦截 → hide)
-            //   - pet:永远拦截 close 改为 hide,重新开启宠物时即时复用,不重建窗口(见 ADR-011)
+            // 1. 主窗关闭按偏好退出应用或隐藏；宠物窗单独关闭时保留以供复用。
             if let WindowEvent::CloseRequested { api, .. } = event {
                 match window.label() {
-                    // main + exit 模式、以及其它 label 都落到 `_`,不拦截 → 走默认关闭
-                    "main" if current_close_behavior() == CloseBehavior::Tray => {
+                    "main" => {
                         api.prevent_close();
-                        let _ = window.hide();
+                        match current_close_behavior() {
+                            Ok(CloseBehavior::Exit) => window.app_handle().exit(0),
+                            Ok(CloseBehavior::Tray) => {
+                                let _ = window.hide();
+                            }
+                            Err(error) => {
+                                // 1.1 配置读取失败时保留主窗，明确报告无法执行关闭偏好。
+                                log::error!("读取关闭行为失败: {error}");
+                                window
+                                    .app_handle()
+                                    .dialog()
+                                    .message(format!("读取应用设置失败，窗口已保留：{error}"))
+                                    .title("Git AI Studio")
+                                    .kind(MessageDialogKind::Error)
+                                    .show(|_| {});
+                            }
+                        }
                     }
                     "pet" => {
                         api.prevent_close();

@@ -112,12 +112,17 @@ pub fn apply_enabled(app: &AppHandle, state: &tauri::State<'_, AppState>, enable
 
 /// 启动时按 `AppSettings.notifications.cc_switch_auto_repair` 决定是否恢复 watcher。
 /// 这是"用户在前一次会话开过就继续开"的纯被动恢复,不弹 toast 避免开机噪声。
-pub fn restore_on_startup(app: &AppHandle, state: &tauri::State<'_, AppState>) {
-    let s = AppSettings::load();
+pub fn restore_on_startup(
+    app: &AppHandle,
+    state: &tauri::State<'_, AppState>,
+) -> crate::error::Result<()> {
+    // 1. 读取有效配置，读取失败交由启动入口处理
+    let s = AppSettings::load()?;
+    // 2. 按用户保存的开关恢复监控
     if s.notifications.cc_switch_auto_repair {
         let mut guard = match state.cc_switch_watcher.lock() {
             Ok(g) => g,
-            Err(_) => return,
+            Err(_) => return Ok(()),
         };
         if guard.is_none() {
             match spawn_watcher(app.clone()) {
@@ -126,6 +131,7 @@ pub fn restore_on_startup(app: &AppHandle, state: &tauri::State<'_, AppState>) {
             }
         }
     }
+    Ok(())
 }
 
 fn spawn_watcher(app: AppHandle) -> Result<WatcherHandle, String> {

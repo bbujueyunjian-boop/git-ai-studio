@@ -87,6 +87,7 @@ pub async fn run_capture_with_stdin(
     run_capture_internal(program, args, cwd, Some(stdin_input), &[], timeout).await
 }
 
+/// 并发处理标准输入输出；超时或 I/O 失败时终止并回收本次子进程。
 async fn run_capture_internal(
     program: &Path,
     args: &[&str],
@@ -95,6 +96,7 @@ async fn run_capture_internal(
     env: &[(String, String)],
     timeout: Duration,
 ) -> Result<CaptureOutput> {
+    // 1. 配置独立子进程及标准流。
     let mut cmd = tokio::process::Command::new(program);
     cmd.args(args)
         .stdin(if stdin_input.is_some() {
@@ -103,7 +105,8 @@ async fn run_capture_internal(
             Stdio::null()
         })
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
     }
@@ -119,22 +122,40 @@ async fn run_capture_internal(
     cmd.creation_flags(CREATE_NO_WINDOW);
 
     let mut child = cmd.spawn().map_err(AppError::Io)?;
-    if let Some(input) = stdin_input {
-        use tokio::io::AsyncWriteExt;
-        let mut stdin = child
-            .stdin
-            .take()
-            .ok_or_else(|| AppError::Other("无法获取 stdin".to_string()))?;
-        stdin
-            .write_all(input.as_bytes())
-            .await
-            .map_err(AppError::Io)?;
-        stdin.shutdown().await.map_err(AppError::Io)?;
-        drop(stdin);
-    }
-    let output = match tokio::time::timeout(timeout, child.wait_with_output()).await {
-        Ok(r) => r.map_err(AppError::Io)?,
+    let mut stdin = child.stdin.take();
+    let mut stdout = child.stdout.take().expect("stdout 已配置为管道");
+    let mut stderr = child.stderr.take().expect("stderr 已配置为管道");
+    let mut stdout_bytes = Vec::new();
+    let mut stderr_bytes = Vec::new();
+
+    // 2. 同时写入输入、读取输出和等待退出，超时覆盖整个通信过程。
+    let communication = async {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let write_input = async {
+            if let Some(input) = stdin_input {
+                let mut pipe = stdin.take().expect("有输入时 stdin 已配置为管道");
+                pipe.write_all(input.as_bytes()).await?;
+                pipe.shutdown().await?;
+            }
+            Ok::<_, std::io::Error>(())
+        };
+        let (_, _, _, status) = tokio::try_join!(
+            write_input,
+            stdout.read_to_end(&mut stdout_bytes),
+            stderr.read_to_end(&mut stderr_bytes),
+            child.wait(),
+        )?;
+        Ok::<_, std::io::Error>(status)
+    };
+    let status = match tokio::time::timeout(timeout, communication).await {
+        Ok(Ok(status)) => status,
+        Ok(Err(error)) => {
+            // 3. 通信失败后也回收进程；调用方取消任务时由 kill_on_drop 终止。
+            child.kill().await.map_err(AppError::Io)?;
+            return Err(AppError::Io(error));
+        }
         Err(_) => {
+            child.kill().await.map_err(AppError::Io)?;
             return Err(AppError::Other(format!(
                 "command timed out after {}s: {}",
                 timeout.as_secs(),
@@ -142,11 +163,10 @@ async fn run_capture_internal(
             )));
         }
     };
-
     Ok(CaptureOutput {
-        status: output.status.code().unwrap_or(-1),
-        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        status: status.code().unwrap_or(-1),
+        stdout: String::from_utf8_lossy(&stdout_bytes).into_owned(),
+        stderr: String::from_utf8_lossy(&stderr_bytes).into_owned(),
     })
 }
 
@@ -241,4 +261,148 @@ fn now_ms() -> i64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 作为独立子进程执行，验证管道阻塞、正常输出与终止后的文件副作用。
+    #[test]
+    #[ignore = "仅由本模块通过独立子进程调用"]
+    fn capture_child_fixture() {
+        // 1. 根据父进程传入的场景产生真实 I/O 或延迟副作用。
+        use std::io::{Read, Write};
+        let mode = std::env::var("STUDIO_CAPTURE_TEST_MODE").unwrap();
+        if mode == "roundtrip" {
+            std::io::stdout()
+                .write_all(&vec![b'o'; 1024 * 1024])
+                .unwrap();
+            std::io::stderr().write_all(b"stderr-marker").unwrap();
+            let mut input = String::new();
+            std::io::stdin().read_to_string(&mut input).unwrap();
+            assert_eq!(input.len(), 1024 * 1024);
+            println!("INPUT_RECEIVED");
+        } else {
+            let dir =
+                std::path::PathBuf::from(std::env::var_os("STUDIO_CAPTURE_TEST_DIR").unwrap());
+            std::fs::write(dir.join("started"), std::process::id().to_string()).unwrap();
+            std::thread::sleep(Duration::from_secs(2));
+            std::fs::write(dir.join("finished"), b"unexpected late side effect").unwrap();
+        }
+    }
+
+    /// 生成只传给测试子进程的环境，避免改写测试宿主的全局环境。
+    fn fixture_env(mode: &str, dir: &Path) -> Vec<(String, String)> {
+        // 1. 使用独立临时目录记录子进程是否实际启动与完成。
+        vec![
+            ("STUDIO_CAPTURE_TEST_MODE".into(), mode.into()),
+            (
+                "STUDIO_CAPTURE_TEST_DIR".into(),
+                dir.to_string_lossy().into_owned(),
+            ),
+        ]
+    }
+
+    const FIXTURE_ARGS: &[&str] = &[
+        "--exact",
+        "proc::tests::capture_child_fixture",
+        "--ignored",
+        "--nocapture",
+    ];
+
+    /// 超时返回后，已启动的子进程不得继续执行延迟写盘。
+    #[tokio::test]
+    async fn capture_timeout_terminates_child() {
+        // 1. 启动真实子进程，并在其延迟写盘之前触发超时。
+        let dir = tempfile::tempdir().unwrap();
+        let result = run_capture_internal(
+            &std::env::current_exe().unwrap(),
+            FIXTURE_ARGS,
+            None,
+            None,
+            &fixture_env("slow", dir.path()),
+            Duration::from_secs(1),
+        )
+        .await;
+        assert!(matches!(result, Err(AppError::Other(message)) if message.contains("timed out")));
+        assert!(dir.path().join("started").exists());
+        // 2. 等过原子进程完成时间，验证已无后续副作用。
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        assert!(!dir.path().join("finished").exists());
+    }
+
+    /// 子进程不读 stdin 时，写入也必须受同一个超时约束。
+    #[tokio::test]
+    async fn capture_timeout_includes_blocked_stdin() {
+        // 1. 写入超过管道容量的数据，验证不会在开始计时前永久阻塞。
+        let dir = tempfile::tempdir().unwrap();
+        let input = "x".repeat(1024 * 1024);
+        let result = run_capture_internal(
+            &std::env::current_exe().unwrap(),
+            FIXTURE_ARGS,
+            None,
+            Some(&input),
+            &fixture_env("slow", dir.path()),
+            Duration::from_secs(1),
+        )
+        .await;
+        assert!(matches!(result, Err(AppError::Other(message)) if message.contains("timed out")));
+        assert!(dir.path().join("started").exists());
+        // 2. 超时后的子进程不得继续写盘。
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        assert!(!dir.path().join("finished").exists());
+    }
+
+    /// 同时填满输入与输出管道仍可完成，保证新增超时处理不引入双向死锁。
+    #[tokio::test]
+    async fn capture_drains_output_while_writing_input() {
+        // 1. 子进程先输出大块内容再读取输入，父进程必须并发收发。
+        let dir = tempfile::tempdir().unwrap();
+        let input = "x".repeat(1024 * 1024);
+        let result = run_capture_internal(
+            &std::env::current_exe().unwrap(),
+            FIXTURE_ARGS,
+            None,
+            Some(&input),
+            &fixture_env("roundtrip", dir.path()),
+            Duration::from_secs(10),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.status, 0);
+        assert!(result.stdout.contains(&"o".repeat(1024 * 1024)));
+        assert!(result.stdout.contains("INPUT_RECEIVED"));
+        assert!(result.stderr.contains("stderr-marker"));
+    }
+
+    /// 调用方取消命令任务时，同样终止已经启动的子进程。
+    #[tokio::test]
+    async fn cancelling_capture_terminates_child() {
+        // 1. 等待子进程实际启动，再取消父任务。
+        let dir = tempfile::tempdir().unwrap();
+        let env = fixture_env("slow", dir.path());
+        let task = tokio::spawn(async move {
+            run_capture_with_env_timeout(
+                &std::env::current_exe().unwrap(),
+                FIXTURE_ARGS,
+                None,
+                &env,
+                Duration::from_secs(10),
+            )
+            .await
+        });
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while !dir.path().join("started").exists() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        task.abort();
+        assert!(matches!(task.await, Err(error) if error.is_cancelled()));
+        // 2. 取消后不再产生延迟副作用。
+        tokio::time::sleep(Duration::from_millis(2500)).await;
+        assert!(!dir.path().join("finished").exists());
+    }
 }

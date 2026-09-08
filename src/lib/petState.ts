@@ -74,7 +74,7 @@ export interface PetStatePayload {
 export interface PetStateInput {
   /** failed_shas 非空(近窗口有 commit 打标失败)。 */
   attributionFailed: boolean;
-  /** daemon 处于 stale_lock / blocked_lock_unknown_pid。 */
+  /** daemon 处于 blocked_lock_unknown_pid。 */
   daemonUnhealthy: boolean;
   /** 有被检测到但未配置 hook 的 agent。 */
   hookMissing: boolean;

@@ -1,25 +1,9 @@
-//! git-ai daemon 进程健康探测。
+//! git-ai daemon 运行态探测；未占用的残留 lock 属于正常空闲状态。
 //!
-//! # 上游真源
-//! - daemon 路径与锁:`git-ai/src/daemon.rs:170-205` (`DaemonConfig::from_internal_dir`,
-//!   Windows 下 `lock_path = ~/.git-ai/internal/daemon/daemon.lock`)
-//! - PID 元信息:`git-ai/src/daemon.rs:289-293` (`DaemonPidMeta { pid, started_at_ns }`)
-//!   ,文件名 `daemon.pid.json`(同目录)
-//! - 报错来源:`git-ai/src/commands/daemon.rs:109-113`
-//!   `daemon startup blocked: lock held at <lock_path>` —— socket 不通且锁拿不到时触发,
-//!   典型成因是 daemon 进程已死但 OS 文件锁未释放(僵尸 lock),client 命令(`git-ai checkpoint` 等)
-//!   会被持续阻塞,hook PostToolUse 报错。
-//!
-//! # 判定口径
-//! - lock 文件不存在 → [`DaemonHealth::Idle`](正常空闲;客户端首次调用会拉起 daemon)
-//! - lock 文件存在 + pid.json 中的 PID 进程存活 → [`DaemonHealth::Running`]
-//! - lock 文件存在但 PID 不存活 / pid.json 缺失/损坏 → [`DaemonHealth::StaleLock`]
-//!
-//! # 进程存活探测
-//! - Windows: `tasklist /FI "PID eq <pid>" /NH /FO CSV`,stdout 含 `"<pid>"` 即存活
-//! - 其它: `kill -0 <pid>`(POSIX 信号 0 不发送任何信号,仅做存在性检查)
+//! 上游 `git-ai/src/utils.rs::LockFile` 释放 OS 锁时保留文件。
+//! PID 元信息与同名进程都不足以证明持锁者身份，未知持锁者必须由用户进一步排查。
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -27,173 +11,129 @@ use tokio::process::Command;
 
 use crate::paths;
 
+/// daemon 诊断结果；异常仅表示锁不可用且未找到存活的记录 PID。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DaemonHealth {
-    /// 没有 daemon 在跑(无 lock 文件)。客户端命令首次调用会自动拉起,无需用户介入。
+    /// 无 lock 或残留 lock 未被占用；客户端命令可按上游流程启动 daemon。
     Idle,
     /// daemon 正常运行(lock 在 + PID 存活)。
     Running { pid: u32 },
-    /// 僵尸 lock:lock 文件还在,但记录的 PID 已经不存活(或 pid.json 缺失/损坏)。
-    /// 用户必须手动清理 `lock_path` 与 `pid_meta_path`,否则 `git-ai checkpoint` 会一直
-    /// 报 "daemon startup blocked: lock held at ..." 阻塞所有 hook。
-    StaleLock {
-        lock_path: String,
-        pid_meta_path: String,
-        last_pid: Option<u32>,
-    },
-    /// lock 仍被某个进程持有,但 pid metadata 缺失/损坏或记录的 PID 已不可用。
-    /// 这种状态下直接删除 daemon.lock 会在 Windows 上失败,必须先定位/结束持锁的 git-ai.exe。
+    /// lock 无法独占打开，但记录 PID 不可用；持锁者身份尚未确认。
     BlockedLockUnknownPid {
         lock_path: String,
         pid_meta_path: String,
         last_pid: Option<u32>,
-        candidate_pids: Vec<u32>,
     },
 }
 
+/// 复查结果；未知持锁者返回错误，正常状态不会修改文件或进程。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DaemonRepairResult {
     pub before: DaemonHealth,
     pub after: DaemonHealth,
-    pub killed_pids: Vec<u32>,
-    pub removed_paths: Vec<String>,
 }
 
-/// 异步探测 git-ai daemon 健康状态。整体应在 ~400ms 内返回(2 次 pid.json 读 + 至多 2 次 tasklist)。
-///
-/// # 重读防抖(规避 daemon 重启竞态)
-/// 系统启动 / `git-ai daemon restart` 后存在一个短窗口:旧 PID 已死、新 daemon 进程正在启动、
-/// `daemon.pid.json` 尚未被新 PID 覆盖。此时只看一眼 pid.json 会把 last_pid 判为失活,
-/// 误报 `StaleLock`;而几秒后 daemon 写入新 pid.json,`repair_daemon_lock` 又会拿到
-/// `Running`,与告警自相矛盾。
-///
-/// 修复:第一次失活后 `sleep 300ms` 再重读 pid.json,任一次拿到活 PID 即返 `Running`。
-/// 仍想进一步降噪由前端 watcher 用"连续 N 次告警"门槛兜底。
+/// 探测 daemon 运行态；PID 初次失活后重读，避开 daemon 重启窗口。
 pub async fn detect_daemon_health() -> DaemonHealth {
-    let lock_path = paths::git_ai_daemon_lock_path();
+    // 1. 从上游运行目录读取锁与 PID 元信息。
+    detect_daemon_health_at(
+        &paths::git_ai_daemon_lock_path(),
+        &paths::git_ai_daemon_pid_meta_path(),
+    )
+    .await
+}
+
+/// 对指定运行目录进行只读探测，供真实诊断与隔离文件测试共用。
+async fn detect_daemon_health_at(lock_path: &Path, pid_path: &Path) -> DaemonHealth {
+    // 1. 缺少锁文件或锁可用均属于正常空闲；残留文件不需要清理。
     if !lock_path.exists() {
         return DaemonHealth::Idle;
     }
-    let pid_path = paths::git_ai_daemon_pid_meta_path();
+    #[cfg(target_os = "windows")]
+    if !daemon_lock_is_held(lock_path) {
+        return DaemonHealth::Idle;
+    }
 
-    let first_pid = read_pid_from_meta(&pid_path);
+    // 2. 重读 PID 元信息，给正在启动的 daemon 留出写入时间。
+    let first_pid = read_pid_from_meta(pid_path);
     if let Some(pid) = first_pid {
         if process_alive(pid).await {
             return DaemonHealth::Running { pid };
         }
     }
-
-    // 第一次判失活 → 等 300ms 让 daemon 重启窗口期写完 pid.json,再读一次确认。
     tokio::time::sleep(Duration::from_millis(300)).await;
-    let second_pid = read_pid_from_meta(&pid_path);
+    let second_pid = read_pid_from_meta(pid_path);
     if let Some(pid) = second_pid {
         if process_alive(pid).await {
             return DaemonHealth::Running { pid };
         }
     }
-    let last_pid = second_pid.or(first_pid);
 
-    if daemon_lock_is_held(&lock_path) {
+    // 3. 只有实际无法取得锁时才报告异常，不按进程名猜测持锁者。
+    if daemon_lock_is_held(lock_path) {
         DaemonHealth::BlockedLockUnknownPid {
             lock_path: lock_path.display().to_string(),
             pid_meta_path: pid_path.display().to_string(),
-            last_pid,
-            candidate_pids: find_git_ai_process_pids().await,
+            last_pid: second_pid.or(first_pid),
         }
     } else {
-        DaemonHealth::StaleLock {
-            lock_path: lock_path.display().to_string(),
-            pid_meta_path: pid_path.display().to_string(),
-            last_pid,
-        }
+        DaemonHealth::Idle
     }
 }
 
-/// 修复僵尸 daemon lock。
-///
-/// # 自愈识别
-/// 用户在告警 OS 通知 / UI 提示和点击「修复」之间通常有数秒到几分钟的延迟,daemon 本身
-/// 可能已经被 schtasks ONLOGON / 客户端命令重新拉起。这两种"已自愈"状态都返
-/// `Ok(no-op)` 让前端展示"无需处理 / 已恢复",而不是用 `Err` 触发"修复失败"通知,
-/// 那会让用户看到"修复失败"以为出了大问题(详见 task #7 bug)。
-///
-/// - `before = Idle`:lock 已被自动清理(daemon 退出或别的客户端清掉) → no-op Ok
-/// - `before = Running`:daemon 已经写入新 pid.json 在跑 → no-op Ok
-/// - `before = StaleLock`:正常清理
-/// - `before = BlockedLockUnknownPid`:杀候选 PID 后清理
+/// 复查 daemon 是否已经恢复；无法确认持锁者身份时停止处理并给出排查建议。
 pub async fn repair_daemon_lock() -> Result<DaemonRepairResult, String> {
-    let before = detect_daemon_health().await;
-    let mut killed_pids = Vec::new();
-    match &before {
-        DaemonHealth::StaleLock { .. } => {}
-        DaemonHealth::BlockedLockUnknownPid {
-            last_pid,
-            candidate_pids,
-            ..
-        } => {
-            let mut pids = Vec::new();
-            if let Some(pid) = last_pid {
-                pids.push(*pid);
-            }
-            for pid in candidate_pids {
-                if !pids.contains(pid) {
-                    pids.push(*pid);
-                }
-            }
-            if pids.is_empty() {
-                return Err("lock 仍被占用,但没有发现明确的 git-ai 进程 PID;请先在任务管理器中结束 git-ai.exe 后重试".to_string());
-            }
-            for pid in pids {
-                kill_process(pid).await?;
-                killed_pids.push(pid);
-            }
-            tokio::time::sleep(Duration::from_millis(500)).await;
-        }
-        DaemonHealth::Idle | DaemonHealth::Running { .. } => {
-            // 已自愈:lock 已消失 / daemon 已重新启动并占住 lock。返 Ok no-op,前端按
-            // before == after && killed_pids.is_empty() && removed_paths.is_empty()
-            // 判定"无需修复 / 已恢复",不当作 error 推通知。
-            return Ok(DaemonRepairResult {
-                before: before.clone(),
-                after: before,
-                killed_pids: vec![],
-                removed_paths: vec![],
-            });
-        }
-    }
+    // 1. 使用最新诊断结果，避免依据先前诊断中的旧 PID 作出判断。
+    repair_after_probe(detect_daemon_health().await)
+}
 
-    let removed_paths = remove_daemon_runtime_files()?;
-    let after = detect_daemon_health().await;
+/// 只接受正常状态作为已恢复结果，未知持锁者不得触发强杀或删除运行文件。
+fn repair_after_probe(before: DaemonHealth) -> Result<DaemonRepairResult, String> {
+    // 1. 拒绝无法证明目标身份的修复，保留现场供用户排查。
+    if matches!(&before, DaemonHealth::BlockedLockUnknownPid { .. }) {
+        return Err("daemon lock 仍不可用，无法确认持锁进程身份。请先尝试官方命令 git-ai daemon shutdown；若失败，请核对实际持锁进程。Studio 未结束任何进程，也未删除运行文件。".into());
+    }
+    // 2. 正常空闲或运行状态无需修改文件和进程。
     Ok(DaemonRepairResult {
-        before,
-        after,
-        killed_pids,
-        removed_paths,
+        before: before.clone(),
+        after: before,
     })
 }
 
+/// 尝试独占打开既有锁文件；不创建、不截断上游运行文件。
 #[cfg(target_os = "windows")]
 fn daemon_lock_is_held(path: &Path) -> bool {
     use std::os::windows::fs::OpenOptionsExt;
 
-    std::fs::OpenOptions::new()
-        .create(true)
+    // 1. 对齐上游 Windows 独占句柄规则；文件已消失时按空闲处理。
+    match std::fs::OpenOptions::new()
         .write(true)
         .share_mode(0)
         .open(path)
-        .is_err()
+    {
+        Ok(_) => false,
+        Err(error) => error.kind() != std::io::ErrorKind::NotFound,
+    }
 }
 
+/// Unix 的现有探测仅依赖 PID；文件是否存在不能证明 advisory lock 被占用。
 #[cfg(not(target_os = "windows"))]
 fn daemon_lock_is_held(_path: &Path) -> bool {
+    // 1. 不把普通残留文件判作持锁。
     false
 }
 
-fn read_pid_from_meta(p: &PathBuf) -> Option<u32> {
-    let raw = std::fs::read_to_string(p).ok()?;
-    let v: serde_json::Value = serde_json::from_str(&raw).ok()?;
-    v.get("pid")?.as_u64().map(|n| n as u32)
+/// 从上游元信息读取有效 PID；缺失或损坏由诊断结果表示。
+fn read_pid_from_meta(path: &Path) -> Option<u32> {
+    // 1. PID 必须可表示为平台 PID，禁止截断成另一个进程号。
+    let raw = std::fs::read_to_string(path).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    value
+        .get("pid")?
+        .as_u64()
+        .and_then(|pid| u32::try_from(pid).ok())
+        .filter(|pid| *pid > 0)
 }
 
 #[cfg(target_os = "windows")]
@@ -213,87 +153,6 @@ async fn process_alive(pid: u32) -> bool {
     }
 }
 
-#[cfg(target_os = "windows")]
-async fn find_git_ai_process_pids() -> Vec<u32> {
-    let mut cmd = Command::new("tasklist");
-    cmd.args(["/FI", "IMAGENAME eq git-ai.exe", "/NH", "/FO", "CSV"]);
-    crate::proc::apply_no_window_tokio(&mut cmd);
-    let out = cmd.output().await;
-    let Ok(o) = out else {
-        return Vec::new();
-    };
-    let s = String::from_utf8_lossy(&o.stdout);
-    s.lines()
-        .filter_map(|line| parse_tasklist_csv_pid(line))
-        .collect()
-}
-
-#[cfg(not(target_os = "windows"))]
-async fn find_git_ai_process_pids() -> Vec<u32> {
-    Vec::new()
-}
-
-#[cfg(target_os = "windows")]
-fn parse_tasklist_csv_pid(line: &str) -> Option<u32> {
-    let mut cols = line.split("\",\"");
-    let name = cols.next()?.trim_matches('"');
-    let pid = cols.next()?.trim_matches('"');
-    if !name.eq_ignore_ascii_case("git-ai.exe") {
-        return None;
-    }
-    pid.parse::<u32>().ok()
-}
-
-fn remove_daemon_runtime_files() -> Result<Vec<String>, String> {
-    let paths = [
-        paths::git_ai_daemon_lock_path(),
-        paths::git_ai_daemon_pid_meta_path(),
-    ];
-    let mut removed = Vec::new();
-    for path in paths {
-        if !path.exists() {
-            continue;
-        }
-        std::fs::remove_file(&path).map_err(|e| format!("删除 {} 失败: {e}", path.display()))?;
-        removed.push(path.display().to_string());
-    }
-    Ok(removed)
-}
-
-#[cfg(target_os = "windows")]
-async fn kill_process(pid: u32) -> Result<(), String> {
-    let mut cmd = Command::new("taskkill");
-    cmd.args(["/F", "/T", "/PID", &pid.to_string()]);
-    crate::proc::apply_no_window_tokio(&mut cmd);
-    let out = cmd
-        .output()
-        .await
-        .map_err(|e| format!("结束 git-ai.exe PID {pid} 失败: {e}"))?;
-    if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        let stdout = String::from_utf8_lossy(&out.stdout);
-        return Err(format!(
-            "结束 git-ai.exe PID {pid} 失败: {}{}",
-            stdout.trim(),
-            stderr.trim()
-        ));
-    }
-    Ok(())
-}
-
-#[cfg(not(target_os = "windows"))]
-async fn kill_process(pid: u32) -> Result<(), String> {
-    let status = Command::new("kill")
-        .args(["-9", &pid.to_string()])
-        .status()
-        .await
-        .map_err(|e| format!("结束 git-ai PID {pid} 失败: {e}"))?;
-    if !status.success() {
-        return Err(format!("结束 git-ai PID {pid} 失败"));
-    }
-    Ok(())
-}
-
 #[cfg(not(target_os = "windows"))]
 async fn process_alive(pid: u32) -> bool {
     let status = Command::new("kill")
@@ -301,4 +160,88 @@ async fn process_alive(pid: u32) -> bool {
         .status()
         .await;
     status.map(|s| s.success()).unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 上游正常退出保留的未占用锁不能触发修复或被删除。
+    #[tokio::test]
+    async fn unheld_lock_is_idle_and_preserved() {
+        // 1. 模拟上游退出后的残留文件，按真实探测入口复查。
+        let dir = tempfile::tempdir().unwrap();
+        let lock_path = dir.path().join("daemon.lock");
+        let pid_path = dir.path().join("daemon.pid.json");
+        std::fs::write(&lock_path, b"retained lock").unwrap();
+        let health = detect_daemon_health_at(&lock_path, &pid_path).await;
+        assert!(matches!(health, DaemonHealth::Idle));
+        let result = repair_after_probe(health).unwrap();
+        assert!(matches!(result.after, DaemonHealth::Idle));
+        assert_eq!(std::fs::read(&lock_path).unwrap(), b"retained lock");
+        assert!(!pid_path.exists());
+    }
+
+    /// 读取不存在的运行目录不能创建锁文件。
+    #[tokio::test]
+    async fn absent_lock_is_idle_without_creating_files() {
+        // 1. 探测空目录并确认无运行文件副作用。
+        let dir = tempfile::tempdir().unwrap();
+        let lock_path = dir.path().join("daemon.lock");
+        let pid_path = dir.path().join("daemon.pid.json");
+        assert!(matches!(
+            detect_daemon_health_at(&lock_path, &pid_path).await,
+            DaemonHealth::Idle
+        ));
+        assert!(!lock_path.exists());
+    }
+
+    /// 未知 Windows 持锁者不能触发强杀或删除，释放后自然恢复空闲。
+    #[cfg(target_os = "windows")]
+    #[tokio::test]
+    async fn unknown_lock_holder_is_preserved() {
+        use std::os::windows::fs::OpenOptionsExt;
+
+        // 1. 用本测试持有真实独占锁，不启动或结束用户进程。
+        let dir = tempfile::tempdir().unwrap();
+        let lock_path = dir.path().join("daemon.lock");
+        let pid_path = dir.path().join("daemon.pid.json");
+        std::fs::write(&lock_path, b"held lock").unwrap();
+        let holder = std::fs::OpenOptions::new()
+            .write(true)
+            .share_mode(0)
+            .open(&lock_path)
+            .unwrap();
+        let health = detect_daemon_health_at(&lock_path, &pid_path).await;
+        assert!(matches!(health, DaemonHealth::BlockedLockUnknownPid { .. }));
+        let error = repair_after_probe(health).unwrap_err();
+        assert!(error.contains("无法确认持锁进程身份"));
+        assert!(daemon_lock_is_held(&lock_path));
+
+        // 2. 正常释放锁后文件内容保持不变，诊断自然恢复。
+        drop(holder);
+        assert_eq!(std::fs::read(&lock_path).unwrap(), b"held lock");
+        assert!(matches!(
+            detect_daemon_health_at(&lock_path, &pid_path).await,
+            DaemonHealth::Idle
+        ));
+        assert!(!pid_path.exists());
+    }
+    /// 未占用的锁即使残留 PID 已被复用，也不能被误判为运行中的 daemon。
+    #[cfg(target_os = "windows")]
+    #[tokio::test]
+    async fn unheld_lock_with_reused_pid_is_idle() {
+        // 1. 使用本测试的存活 PID 模拟元信息过期，不操作该进程。
+        let dir = tempfile::tempdir().unwrap();
+        let lock_path = dir.path().join("daemon.lock");
+        let pid_path = dir.path().join("daemon.pid.json");
+        std::fs::write(&lock_path, b"retained lock").unwrap();
+        std::fs::write(&pid_path, format!(r#"{{"pid":{}}}"#, std::process::id())).unwrap();
+        assert!(matches!(
+            detect_daemon_health_at(&lock_path, &pid_path).await,
+            DaemonHealth::Idle
+        ));
+        assert!(lock_path.exists());
+        assert!(pid_path.exists());
+    }
 }

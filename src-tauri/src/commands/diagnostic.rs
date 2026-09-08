@@ -139,17 +139,17 @@ pub async fn check_agent_hooks(agent: AgentKind) -> Result<AgentHookStatus, Stri
     Err(format!("unknown agent: {agent:?}"))
 }
 
-/// 探测 git-ai daemon 是否健康(主要用于"僵尸 lock"的可视提醒)。
-/// 与 [`diagnose_environment`] 解耦:它只跑 ~100ms,可独立刷新,且 Diagnostic 顶部
-/// 横幅按需显示,不必与重型环境诊断同周期。
+/// 独立探测 daemon 运行态，向诊断页和后台通知提供未知持锁者信息。
 #[tauri::command]
 pub async fn diagnose_git_ai_daemon() -> Result<crate::git_ai::daemon::DaemonHealth, String> {
+    // 1. 独立于重型环境诊断读取 daemon 当前状态。
     Ok(crate::git_ai::daemon::detect_daemon_health().await)
 }
 
-/// 用户在诊断页确认后处理 git-ai daemon lock。
+/// 复查 daemon 是否恢复；未知持锁者返回原因和手动排查建议。
 #[tauri::command]
 pub async fn repair_git_ai_daemon() -> Result<crate::git_ai::daemon::DaemonRepairResult, String> {
+    // 1. 无法确认进程身份时由后端停止处理并保留现场。
     crate::git_ai::daemon::repair_daemon_lock().await
 }
 

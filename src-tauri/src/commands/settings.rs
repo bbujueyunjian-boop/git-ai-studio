@@ -53,18 +53,22 @@ pub struct AppSettingsPatch {
     pub pet_alert_interval_sec: Option<u32>,
 }
 
+/// 读取应用设置；读取或解析失败通过 IPC 返回明确错误。
 #[tauri::command]
 pub async fn get_app_settings() -> Result<AppSettings, String> {
-    Ok(AppSettings::load())
+    // 1. 仅从已验证的配置构造返回值
+    AppSettings::load().map_err(Into::into)
 }
 
+/// 将显式设置项合并到有效配置，保存成功后再同步 watcher 和窗口状态。
 #[tauri::command]
 pub async fn set_app_settings(
     app: AppHandle,
     state: State<'_, AppState>,
     patch: AppSettingsPatch,
 ) -> Result<AppSettings, String> {
-    let mut s = AppSettings::load();
+    // 1. 严格读取已有配置，失败时停止更新
+    let mut s = AppSettings::load()?;
     let prev_cc_switch = s.notifications.cc_switch_auto_repair;
     let prev_pet_enabled = s.pet.enabled;
     let prev_low_ai_enabled = s.notifications.low_ai_share.enabled;
@@ -73,6 +77,7 @@ pub async fn set_app_settings(
         .low_ai_share
         .realtime_enabled
         .unwrap_or(true);
+    // 2. 校验并合并本次显式提交的设置项
     if let Some(roots) = patch.scan_roots {
         s.scan_roots = roots;
     }
@@ -148,15 +153,17 @@ pub async fn set_app_settings(
     if let Some(n) = patch.pet_alert_interval_sec {
         s.pet.alert_interval_sec = Some(n.min(600));
     }
+    // 3. 配置持久化成功后才更新外部运行状态
     s.save().map_err(|e| format!("写入设置失败: {e}"))?;
 
-    // cc-switch watcher 即时联动:开关翻转就启/停,无需重启应用。
+    // 4. 同步运行中的监控与窗口
+    // 4.1 cc-switch watcher 即时联动:开关翻转就启/停,无需重启应用。
     let now_cc_switch = s.notifications.cc_switch_auto_repair;
     if prev_cc_switch != now_cc_switch {
         crate::cc_switch_watcher::apply_enabled(&app, &state, now_cc_switch);
     }
 
-    // refs/notes/ai 实时 watcher 联动:任意一个开关变化都重新应用一次(幂等)。
+    // 4.2 refs/notes/ai 实时 watcher 联动:任意一个开关变化都重新应用一次(幂等)。
     // 默认 true:realtime_enabled = None 视为开启。
     let now_low_ai_enabled = s.notifications.low_ai_share.enabled;
     let now_low_ai_realtime = s

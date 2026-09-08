@@ -30,29 +30,20 @@ export interface DebugReport {
 export type AgentKind = "Claude" | "Cursor" | "Codex" | "OpenCode" | "Gemini" | "Pi";
 
 /** git-ai daemon 健康态。后端 [`DaemonHealth`] 用 `#[serde(tag="kind", rename_all="snake_case")]`,
- *  这里的 kind 取值与之严格对齐;`stale_lock` 才需要用户介入处置。 */
+ *  这里的 kind 取值与之严格对齐;`blocked_lock_unknown_pid` 表示需要核实持锁者。 */
 export type DaemonHealth =
   | { kind: "idle" }
   | { kind: "running"; pid: number }
-  | {
-      kind: "stale_lock";
-      lock_path: string;
-      pid_meta_path: string;
-      last_pid: number | null;
-    }
   | {
       kind: "blocked_lock_unknown_pid";
       lock_path: string;
       pid_meta_path: string;
       last_pid: number | null;
-      candidate_pids: number[];
     };
 
 export interface DaemonRepairResult {
   before: DaemonHealth;
   after: DaemonHealth;
-  killed_pids: number[];
-  removed_paths: string[];
 }
 
 export type HookType = "command" | "http" | "unknown";

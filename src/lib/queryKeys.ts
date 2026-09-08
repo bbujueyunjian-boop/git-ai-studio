@@ -49,7 +49,7 @@ export function reposKey(paths: string[]): string {
  *   全部 app-scoped,与 repo 选择无关。
  */
 export function invalidateRepoScopedQueries(qc: QueryClient): void {
-  // repo 元信息
+  // 1. 刷新当前仓库与分支信息
   qc.invalidateQueries({ queryKey: ["current_repo"] });
   qc.invalidateQueries({ queryKey: ["current_git_user_email"] });
   // People 页用的独立 key,与 ["current_repo"] 名义重复但是两个 query 实例。
@@ -57,7 +57,7 @@ export function invalidateRepoScopedQueries(qc: QueryClient): void {
   qc.invalidateQueries({ queryKey: ["current_repo_path"] });
   qc.invalidateQueries({ queryKey: ["recent_repos"] });
   qc.invalidateQueries({ queryKey: ["list_branches"] });
-  // HEAD 派生数据
+  // 2. 刷新 HEAD 与工作区派生数据
   qc.invalidateQueries({ queryKey: ["blame_at_commit"] });
   qc.invalidateQueries({ queryKey: ["read_file_at_commit"] });
   qc.invalidateQueries({ queryKey: ["commit_stats"] });
@@ -66,9 +66,10 @@ export function invalidateRepoScopedQueries(qc: QueryClient): void {
   qc.invalidateQueries({ queryKey: ["commit_status"] });
   qc.invalidateQueries({ queryKey: ["recent_commits_with_stats"] });
   qc.invalidateQueries({ queryKey: ["list_ai_notes"] });
+  qc.invalidateQueries({ queryKey: ["list_checkpoints"] });
   qc.invalidateQueries({ queryKey: ["history"] });
   qc.invalidateQueries({ queryKey: ["people"] });
-  // 环境/诊断
+  // 3. 刷新仓库环境诊断
   qc.invalidateQueries({ queryKey: ["diagnose_environment"] });
   qc.invalidateQueries({ queryKey: ["effective_ignore_patterns"] });
 }

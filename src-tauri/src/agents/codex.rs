@@ -1,8 +1,9 @@
 //! Codex (OpenAI):`~/.codex/config.toml` 内嵌 `[[hooks.*]]` 段(git-ai 1.4.8+ 主路径)。
-//! Legacy:`~/.codex/hooks.json`(git-ai 1.4.7-,1.4.8+ 仍可识别但 install-hooks 会清理)。
+//! 显式设置 `codex_hooks_format = "hooks_json"` 时使用 `~/.codex/hooks.json`。
 //!
 //! # 权威 schema 来源
-//! 上游 `git-ai/src/mdm/agents/codex.rs:14, 164-208, 233-318`:
+//! 上游 `git-ai/src/mdm/agents/codex.rs:164-208, 705-720` 与
+//! `git-ai/src/config.rs:85-110`：
 //! - `[features].hooks = true`(legacy: `[features].codex_hooks = true`)
 //! - `[[hooks.<Event>]]` 三段:`PreToolUse / PostToolUse / Stop`
 //!   - matcher 缺省或 `"*"`(catch-all)
@@ -14,15 +15,16 @@
 
 use async_trait::async_trait;
 use serde_json::Value as JsonValue;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use toml::Value as TomlValue;
 
-use crate::paths::home_dir;
+use crate::paths::{git_ai_config_json, home_dir};
 
 use super::{AgentHookStatus, AgentKind, AgentProbe, HookType};
 
 const CODEX_HOOK_EVENTS: [&str; 3] = ["PreToolUse", "PostToolUse", "Stop"];
 
+/// 按 git-ai 选择的配置格式检查 Codex hooks。
 pub struct CodexProbe;
 
 #[async_trait]
@@ -33,33 +35,83 @@ impl AgentProbe for CodexProbe {
     fn config_path(&self) -> PathBuf {
         home_dir().join(".codex").join("config.toml")
     }
+    /// 读取上游选择的格式并诊断实际 Codex hook 配置。
     async fn probe(&self) -> AgentHookStatus {
-        let toml_path = home_dir().join(".codex").join("config.toml");
-        let json_path = home_dir().join(".codex").join("hooks.json");
+        // 1. 使用实际配置路径读取所选格式与 hooks。
+        probe_paths(
+            home_dir().join(".codex").join("config.toml"),
+            home_dir().join(".codex").join("hooks.json"),
+            &git_ai_config_json(),
+        )
+    }
+}
 
-        // 主路径:config.toml
-        if toml_path.exists() {
-            return match std::fs::read_to_string(&toml_path) {
-                Ok(raw) => match toml::from_str::<TomlValue>(&raw) {
-                    Ok(v) => probe_toml(v, toml_path, &json_path),
-                    Err(e) => toml_parse_error(
-                        toml_path,
-                        &json_path,
-                        format!("config.toml 解析失败: {e}"),
-                    ),
-                },
-                Err(e) => {
-                    toml_parse_error(toml_path, &json_path, format!("读 config.toml 失败: {e}"))
+/// 在指定路径检查配置，避免诊断与测试依赖进程级 HOME 修改。
+fn probe_paths(toml_path: PathBuf, json_path: PathBuf, git_config_path: &Path) -> AgentHookStatus {
+    // 1. 先读取上游选择的格式，损坏配置不能被当作默认格式。
+    let uses_json = match uses_hooks_json(git_config_path) {
+        Ok(value) => value,
+        Err(message) => return config_error(git_config_path.to_path_buf(), message),
+    };
+
+    // 2. 两种格式都依赖 config.toml 中的 hooks 功能开关。
+    if toml_path.exists() {
+        let parsed = std::fs::read_to_string(&toml_path)
+            .map_err(|e| format!("读 config.toml 失败: {e}"))
+            .and_then(|raw| {
+                toml::from_str::<TomlValue>(&raw).map_err(|e| format!("config.toml 解析失败: {e}"))
+            });
+        return match parsed {
+            Ok(value) if uses_json => {
+                let mut status = probe_json(json_path);
+                if !is_hooks_feature_enabled(&value) {
+                    status.configured = false;
+                    status.hook_type = None;
+                    status.issues.push("[features].hooks = true 未启用(或 legacy [features].codex_hooks = true 缺失)".into());
                 }
-            };
-        }
+                status
+            }
+            Ok(value) => probe_toml(value, toml_path, &json_path),
+            Err(message) => config_error(toml_path, message),
+        };
+    }
 
-        // 主路径不存在 -> 仅有 legacy hooks.json 时回退
-        if json_path.exists() {
-            return probe_legacy_json(json_path);
-        }
+    // 3. 显式 JSON 模式缺少功能开关时报告未配置；保留旧版配置的诊断。
+    if uses_json {
+        return config_error(
+            toml_path,
+            "缺少 config.toml，无法确认 Codex hooks 功能已启用".into(),
+        );
+    }
+    if json_path.exists() {
+        return probe_legacy_json(json_path);
+    }
+    missing(toml_path)
+}
 
-        missing(toml_path)
+/// 对齐上游 CodexHooksFormat 的两个格式及其连字符别名；无配置时默认 TOML。
+fn uses_hooks_json(path: &Path) -> Result<bool, String> {
+    // 1. 首次安装允许配置文件不存在；其它读取和解析错误保留原因。
+    let raw = match std::fs::read_to_string(path) {
+        Ok(raw) => raw,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(format!("读 git-ai 配置失败: {error}")),
+    };
+    let config: JsonValue =
+        serde_json::from_str(&raw).map_err(|error| format!("git-ai 配置解析失败: {error}"))?;
+    let object = config
+        .as_object()
+        .ok_or_else(|| "git-ai 配置必须是 JSON 对象".to_string())?;
+
+    // 2. 按上游字段选择格式，未知值明确提示配置错误。
+    match object.get("codex_hooks_format") {
+        None | Some(JsonValue::Null) => Ok(false),
+        Some(JsonValue::String(value)) => match value.trim().to_ascii_lowercase().as_str() {
+            "config_toml" | "config-toml" => Ok(false),
+            "hooks_json" | "hooks-json" => Ok(true),
+            _ => Err(format!("未知 codex_hooks_format: {value}")),
+        },
+        Some(_) => Err("codex_hooks_format 必须是字符串".into()),
     }
 }
 
@@ -77,22 +129,14 @@ fn missing(toml_path: PathBuf) -> AgentHookStatus {
     }
 }
 
-/// config.toml 解析层错误:文件存在但读/解析失败。仍尝试 legacy hooks.json 兜底诊断信息。
-fn toml_parse_error(
-    toml_path: PathBuf,
-    json_path: &std::path::Path,
-    msg: String,
-) -> AgentHookStatus {
-    if json_path.exists() {
-        let mut s = probe_legacy_json(json_path.to_path_buf());
-        s.issues.insert(0, msg);
-        return s;
-    }
+/// 将配置读取错误映射为未配置状态，保留失败路径与原因。
+fn config_error(path: PathBuf, msg: String) -> AgentHookStatus {
+    // 1. 配置不可用时不能推断 hooks 已生效。
     AgentHookStatus {
         agent: AgentKind::Codex,
         detected: true,
         configured: false,
-        config_path: Some(toml_path.display().to_string()),
+        config_path: Some(path.display().to_string()),
         hook_type: None,
         raw_excerpt: None,
         issues: vec![msg],
@@ -205,9 +249,21 @@ fn is_hooks_feature_enabled(toml_v: &TomlValue) -> bool {
     new_flag || legacy_flag
 }
 
-/// Legacy:~/.codex/hooks.json(git-ai 1.4.7-)。
-/// 检测到则标 configured=true,但 issues 明确提示用户迁移到 config.toml。
+/// 为默认 TOML 模式下发现的旧版 JSON hooks 补充迁移提示。
 fn probe_legacy_json(json_path: PathBuf) -> AgentHookStatus {
+    // 1. 保留实际 hooks 检测结果，仅补充格式迁移信息。
+    let mut status = probe_json(json_path);
+    status.issues.insert(
+        0,
+        "使用 legacy ~/.codex/hooks.json 格式，当前选择 config_toml，可重跑 install-hooks 迁移"
+            .into(),
+    );
+    status
+}
+
+/// 检查 JSON hooks 的三个必需事件，供显式 JSON 模式与旧版诊断共用。
+fn probe_json(json_path: PathBuf) -> AgentHookStatus {
+    // 1. 读取并解析目标 JSON 文件。
     let raw = match std::fs::read_to_string(&json_path) {
         Ok(s) => s,
         Err(e) => {
@@ -218,7 +274,7 @@ fn probe_legacy_json(json_path: PathBuf) -> AgentHookStatus {
                 config_path: Some(json_path.display().to_string()),
                 hook_type: None,
                 raw_excerpt: None,
-                issues: vec![format!("读 legacy hooks.json 失败: {e}")],
+                issues: vec![format!("读 hooks.json 失败: {e}")],
             };
         }
     };
@@ -232,14 +288,13 @@ fn probe_legacy_json(json_path: PathBuf) -> AgentHookStatus {
                 config_path: Some(json_path.display().to_string()),
                 hook_type: None,
                 raw_excerpt: None,
-                issues: vec![format!("legacy hooks.json 解析失败: {e}")],
+                issues: vec![format!("hooks.json 解析失败: {e}")],
             };
         }
     };
 
-    let mut issues = vec![
-        "使用 legacy ~/.codex/hooks.json 格式,git-ai 1.4.8+ 已迁到 ~/.codex/config.toml,建议重跑 install-hooks".into(),
-    ];
+    // 2. 逐个检查上游要求的事件与命令。
+    let mut issues = Vec::new();
     let mut excerpt: Option<String> = None;
     let hooks = json.get("hooks");
     let mut configured_events: u8 = 0;
@@ -247,7 +302,7 @@ fn probe_legacy_json(json_path: PathBuf) -> AgentHookStatus {
     for which in CODEX_HOOK_EVENTS {
         let arr = hooks.and_then(|h| h.get(which)).and_then(|v| v.as_array());
         let Some(arr) = arr else {
-            issues.push(format!("legacy hooks.{which} 缺失"));
+            issues.push(format!("hooks.{which} 缺失"));
             continue;
         };
         let mut event_configured = false;
@@ -260,7 +315,7 @@ fn probe_legacy_json(json_path: PathBuf) -> AgentHookStatus {
                 if is_git_ai_codex_hook(command) {
                     event_configured = true;
                     if excerpt.is_none() {
-                        excerpt = Some(format!("legacy command: {command}"));
+                        excerpt = Some(format!("hooks.json command: {command}"));
                     }
                     break;
                 }
@@ -494,5 +549,103 @@ hooks = [{ type = "command", command = "/h/g/git-ai checkpoint codex --hook-inpu
         assert!(!is_git_ai_codex_hook(
             "echo 'checkpoint codex' && touch /tmp/x"
         ));
+    }
+    /// 创建上游显式 JSON 模式安装生成的配置，不修改真实用户目录。
+    fn write_json_mode_fixture(dir: &Path) {
+        // 1. 写入所选格式、功能开关和三个官方事件。
+        std::fs::write(
+            dir.join("git-ai.json"),
+            r#"{"codex_hooks_format":"hooks_json"}"#,
+        )
+        .unwrap();
+        std::fs::write(dir.join("config.toml"), "[features]\nhooks = true\n").unwrap();
+        let hook = serde_json::json!([{"hooks": [{"type": "command", "command": "git-ai checkpoint codex --hook-input stdin"}]}]);
+        std::fs::write(
+            dir.join("hooks.json"),
+            serde_json::to_string(&serde_json::json!({"hooks": {
+                "PreToolUse": hook, "PostToolUse": hook, "Stop": hook
+            }}))
+            .unwrap(),
+        )
+        .unwrap();
+    }
+
+    /// 显式 JSON 模式不得误报缺少 inline hooks 或要求迁移格式。
+    #[test]
+    fn selected_hooks_json_is_configured_without_legacy_warning() {
+        // 1. 按真实入口读取隔离配置并检查完整诊断。
+        let dir = tempfile::tempdir().unwrap();
+        write_json_mode_fixture(dir.path());
+        let status = probe_paths(
+            dir.path().join("config.toml"),
+            dir.path().join("hooks.json"),
+            &dir.path().join("git-ai.json"),
+        );
+        assert!(status.configured, "{:?}", status.issues);
+        assert!(status.issues.is_empty(), "{:?}", status.issues);
+        assert_eq!(status.hook_type, Some(HookType::Command));
+    }
+
+    /// JSON hooks 存在仍必须启用 config.toml 中的 hooks 功能。
+    #[test]
+    fn selected_hooks_json_requires_features_flag() {
+        // 1. 删除真实必要条件，确认不会假报已配置。
+        let dir = tempfile::tempdir().unwrap();
+        write_json_mode_fixture(dir.path());
+        std::fs::write(
+            dir.path().join("config.toml"),
+            "[features]\nhooks = false\n",
+        )
+        .unwrap();
+        let status = probe_paths(
+            dir.path().join("config.toml"),
+            dir.path().join("hooks.json"),
+            &dir.path().join("git-ai.json"),
+        );
+        assert!(!status.configured);
+        assert!(status
+            .issues
+            .iter()
+            .any(|issue| issue.contains("[features].hooks")));
+    }
+
+    /// 损坏的上游格式配置与 Codex TOML 都不能被其它文件掩盖。
+    #[test]
+    fn malformed_format_config_or_toml_is_reported() {
+        // 1. 分别破坏决定实际通道的两份配置。
+        let dir = tempfile::tempdir().unwrap();
+        for file in ["git-ai.json", "config.toml"] {
+            write_json_mode_fixture(dir.path());
+            std::fs::write(dir.path().join(file), "{").unwrap();
+            let status = probe_paths(
+                dir.path().join("config.toml"),
+                dir.path().join("hooks.json"),
+                &dir.path().join("git-ai.json"),
+            );
+            assert!(!status.configured);
+            assert!(status.issues.iter().any(|issue| issue.contains("解析失败")));
+        }
+    }
+
+    /// 所选格式支持上游既有别名；未设置时使用默认 TOML。
+    #[test]
+    fn format_selection_matches_upstream_names() {
+        // 1. 覆盖缺省与上游接受的格式拼写。
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("git-ai.json");
+        assert!(!uses_hooks_json(&path).unwrap());
+        for (value, expected) in [
+            ("hooks_json", true),
+            (" HOOKS-JSON ", true),
+            ("config_toml", false),
+            ("config-toml", false),
+        ] {
+            std::fs::write(
+                &path,
+                serde_json::to_string(&serde_json::json!({"codex_hooks_format": value})).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(uses_hooks_json(&path).unwrap(), expected);
+        }
     }
 }

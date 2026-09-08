@@ -18,7 +18,6 @@ import { Badge } from "../components/Badge";
 import { Collapsible } from "../components/ui/CollapsibleSection";
 import { QuickFixDialog, type QuickFixSkipEntry } from "../components/QuickFixDialog";
 import { AgentCliInstaller } from "../components/AgentCliInstaller";
-import { Dialog } from "../components/ui/DialogShell";
 import { StatusDot } from "../components/StatusDot";
 import { Tooltip } from "../components/ui/TooltipBubble";
 import {
@@ -37,36 +36,12 @@ import { notify } from "../lib/osNotify";
 import { cn } from "../lib/cn";
 import { buildCheckList } from "../lib/diagnosticChecks";
 
-// ===== daemon lock 清理命令生成（本地逻辑，与文案无关） =====
-
-/** 僵尸 lock：进程已死，直接删除 lock/pid 文件 */
-const staleLockCmd = {
-  forWindows: (lockPath: string, pidPath: string) => `del /f /q "${lockPath}" "${pidPath}"`,
-  forUnix: (lockPath: string, pidPath: string) => `rm -f "${lockPath}" "${pidPath}"`,
-};
-
-/** 进程阻塞 lock：先结束持锁进程，再删除 lock/pid 文件，最后验证 */
-const blockedLockCmd = {
-  forWindows: (lockPath: string, pidPath: string, pid: number | null) =>
-    [
-      pid === null ? "Get-Process git-ai" : `taskkill /F /T /PID ${pid}`,
-      `del /f /q "${lockPath}" "${pidPath}"`,
-      "git-ai status --json",
-    ].join("; "),
-  forUnix: (lockPath: string, pidPath: string, pid: number | null) =>
-    [
-      pid === null ? "ps -ef | grep git-ai" : `kill -9 ${pid}`,
-      `rm -f "${lockPath}" "${pidPath}"`,
-      "git-ai status --json",
-    ].join(" && "),
-};
 import { evaluateQuickFixes, type QuickFixEntry } from "../lib/quickFixCatalog";
 import type {
   AgentHookStatus,
   AgentKind,
   AppSettings,
   DaemonHealth,
-  DaemonRepairResult,
   DiagnosticOverview,
   StatusLevel,
 } from "../lib/types";
@@ -119,21 +94,9 @@ function shouldPushDaemonRepairResult(settings: AppSettings | undefined): boolea
 /** t 的宽松别名:模块级 helper 拼装 toast/通知文案时用,绕开 react-i18next 严格 key 类型 + 深实例化。 */
 type Translate = (key: string, opts?: Record<string, unknown>) => string;
 
-function formatDaemonRepairResult(result: DaemonRepairResult, tt: Translate): string {
-  const none = tt("diagnostic.daemonRepair.format.none");
-  return [
-    formatDaemonHealthForAlert(result.before, tt),
-    tt("diagnostic.daemonRepair.format.killedPidsTemplate", {
-      pids: result.killed_pids.length > 0 ? result.killed_pids.join(", ") : none,
-    }),
-    tt("diagnostic.daemonRepair.format.removedPathsTemplate", {
-      paths: result.removed_paths.length > 0 ? result.removed_paths.join(", ") : none,
-    }),
-    tt("diagnostic.daemonRepair.format.afterStateTemplate", { kind: result.after.kind }),
-  ].join("\n");
-}
-
+/** 格式化最新 daemon 诊断事实，供复查失败通知定位问题。 */
 function formatDaemonHealthForAlert(health: DaemonHealth | null, tt: Translate): string {
+  // 1. 按可用状态输出进程与运行文件信息。
   if (!health) return tt("diagnostic.daemonRepair.format.beforeUnknown");
   if (health.kind === "idle") return tt("diagnostic.daemonRepair.format.beforeIdle");
   if (health.kind === "running")
@@ -144,11 +107,6 @@ function formatDaemonHealthForAlert(health: DaemonHealth | null, tt: Translate):
     `pid metadata: ${health.pid_meta_path}`,
     `last pid: ${health.last_pid ?? "unknown"}`,
   ];
-  if (health.kind === "blocked_lock_unknown_pid") {
-    lines.push(
-      `candidate pids: ${health.candidate_pids.length > 0 ? health.candidate_pids.join(", ") : "none"}`,
-    );
-  }
   return lines.join("\n");
 }
 
@@ -186,10 +144,6 @@ export default function DiagnosticPage({ embedded = false }: { embedded?: boolea
   const { navigate } = useRouter();
   const qc = useQueryClient();
   const [fixOpen, setFixOpen] = useState(false);
-  const [daemonRepairTarget, setDaemonRepairTarget] = useState<Extract<
-    DaemonHealth,
-    { kind: "stale_lock" | "blocked_lock_unknown_pid" }
-  > | null>(null);
   // 任务 #7:Catalog 单条命中后点开的"命令详情" dialog,与"修复缺失 hooks"互相独立。
   const [catalogEntry, setCatalogEntry] = useState<QuickFixEntry | null>(null);
   const winOs = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
@@ -242,37 +196,16 @@ export default function DiagnosticPage({ embedded = false }: { embedded?: boolea
   const daemonRepairM = useMutation({
     mutationFn: repairGitAiDaemon,
     onSuccess: (result) => {
-      setDaemonRepairTarget(null);
       qc.invalidateQueries({ queryKey: ["diagnose_git_ai_daemon"] });
-      // "已自愈"分支:后端在 before=Idle/Running 时返 no-op Ok(killed_pids/removed_paths 均空)。
-      // 这种情况下用户在告警和点击修复之间 daemon 已经恢复,UI 应展示"虚惊一场",不再发 OS 通知。
-      const selfHealed =
-        result.killed_pids.length === 0 &&
-        result.removed_paths.length === 0 &&
-        (result.before.kind === "idle" || result.before.kind === "running");
-      if (selfHealed) {
-        toast.info(t("diagnostic.daemonRepair.selfHealed.title"), {
-          description:
-            result.before.kind === "running"
-              ? t("diagnostic.daemonRepair.selfHealed.runningDescTemplate", {
-                  pid: result.before.pid,
-                })
-              : t("diagnostic.daemonRepair.selfHealed.idleDesc"),
-        });
-        return;
-      }
-      toast.success(t("diagnostic.daemonRepair.success.title"), {
-        description: t("diagnostic.daemonRepair.success.descTemplate", {
-          killed: result.killed_pids.length,
-          removed: result.removed_paths.length,
-        }),
+      // 1. 后端仅在已经恢复为空闲或运行状态时成功返回。
+      toast.info(t("diagnostic.daemonRepair.selfHealed.title"), {
+        description:
+          result.after.kind === "running"
+            ? t("diagnostic.daemonRepair.selfHealed.runningDescTemplate", {
+                pid: result.after.pid,
+              })
+            : t("diagnostic.daemonRepair.selfHealed.idleDesc"),
       });
-      if (shouldPushDaemonRepairResult(settingsQ.data)) {
-        void notify(
-          t("diagnostic.daemonRepair.notify.successTitle"),
-          formatDaemonRepairResult(result, tt),
-        );
-      }
     },
     onError: (e) => {
       const message = (e as Error).message;
@@ -281,7 +214,7 @@ export default function DiagnosticPage({ embedded = false }: { embedded?: boolea
         void notify(
           t("diagnostic.daemonRepair.error.title"),
           t("diagnostic.daemonRepair.notify.errorBodyTemplate", {
-            health: formatDaemonHealthForAlert(daemonRepairTarget, tt),
+            health: formatDaemonHealthForAlert(daemonHealthQ.data ?? null, tt),
             message,
           }),
         );
@@ -377,9 +310,7 @@ export default function DiagnosticPage({ embedded = false }: { embedded?: boolea
 
   // 健康总判定(健康优先重构):daemon 锁 / catalog 命中 / 检查清单 err|warn 任一存在即"需处理"。
   // 健康时整页收敛成一张结论卡 + 三个折叠抽屉;有问题时把问题顶到结论卡下方。
-  const daemonProblem =
-    daemonHealthQ.data?.kind === "stale_lock" ||
-    daemonHealthQ.data?.kind === "blocked_lock_unknown_pid";
+  const daemonProblem = daemonHealthQ.data?.kind === "blocked_lock_unknown_pid";
   const attentionCount = checklist.problems.length + catalogHits.length + (daemonProblem ? 1 : 0);
   const configuredAgents = data ? data.agents.filter((a) => a.configured).length : 0;
   const totalAgents = data ? data.agents.length : 0;
@@ -458,36 +389,12 @@ export default function DiagnosticPage({ embedded = false }: { embedded?: boolea
         </h2>
       )}
 
-      {/* 僵尸 daemon lock 横幅:lock 文件还在但 PID 已死,所有 hook 命令会被一直阻塞。
-          独立横幅 + 复制清理命令,不卷进自动检查清单(后者是 git-ai 健康全景,不易凸显)。 */}
-      {daemonHealthQ.data?.kind === "stale_lock" && (
-        <DaemonStaleLockBanner
-          health={daemonHealthQ.data}
-          winOs={winOs}
-          busy={daemonRepairM.isPending}
-          onRepair={() =>
-            setDaemonRepairTarget(
-              daemonHealthQ.data as Extract<
-                DaemonHealth,
-                { kind: "stale_lock" | "blocked_lock_unknown_pid" }
-              >,
-            )
-          }
-        />
-      )}
+      {/* 1. 展示未知持锁者的诊断与官方控制命令。 */}
       {daemonHealthQ.data?.kind === "blocked_lock_unknown_pid" && (
         <DaemonBlockedLockBanner
           health={daemonHealthQ.data}
-          winOs={winOs}
           busy={daemonRepairM.isPending}
-          onRepair={() =>
-            setDaemonRepairTarget(
-              daemonHealthQ.data as Extract<
-                DaemonHealth,
-                { kind: "stale_lock" | "blocked_lock_unknown_pid" }
-              >,
-            )
-          }
+          onRepair={() => daemonRepairM.mutate()}
         />
       )}
 
@@ -730,37 +637,6 @@ export default function DiagnosticPage({ embedded = false }: { embedded?: boolea
       )}
 
       {/* QuickFix:同页执行 install hooks,模式由用户在对话框内选择 */}
-      <Dialog
-        open={daemonRepairTarget !== null}
-        onOpenChange={(v) => !daemonRepairM.isPending && !v && setDaemonRepairTarget(null)}
-        title={t("diagnostic.daemonRepairDialog.title")}
-        description={t("diagnostic.daemonRepairDialog.description")}
-        dismissible={!daemonRepairM.isPending}
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setDaemonRepairTarget(null)}
-              disabled={daemonRepairM.isPending}
-              className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50 dark:border-border dark:hover:bg-muted"
-            >
-              {t("common.cancel")}
-            </button>
-            <button
-              type="button"
-              onClick={() => daemonRepairM.mutate()}
-              disabled={daemonRepairM.isPending || !daemonRepairTarget}
-              className="inline-flex items-center gap-1 rounded-md bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-500 disabled:opacity-50"
-            >
-              {daemonRepairM.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              {t("diagnostic.daemonRepairDialog.confirm")}
-            </button>
-          </>
-        }
-      >
-        {daemonRepairTarget && <DaemonRepairConfirmBody health={daemonRepairTarget} />}
-      </Dialog>
-
       <QuickFixDialog
         open={fixOpen}
         onOpenChange={setFixOpen}
@@ -865,106 +741,19 @@ function SkeletonBlocks() {
   );
 }
 
-/**
- * 「git-ai daemon 僵尸 lock」横幅。仅在 [`DaemonHealth.kind`]==="stale_lock" 时挂载。
- *
- * 视觉等同 Hooks.tsx 的 conflict 横幅(rose 配色 + AlertTriangle),含两个文件路径与
- * 复制清理命令。不提供"一键删除"按钮 —— 涉及 home 目录文件的破坏性动作,且需要重启
- * client 命令拉起新 daemon,留给用户在终端执行更安全。
- */
-function DaemonStaleLockBanner({
-  health,
-  winOs,
-  busy,
-  onRepair,
-}: {
-  health: Extract<DaemonHealth, { kind: "stale_lock" }>;
-  winOs: boolean;
-  busy: boolean;
-  onRepair: () => void;
-}) {
-  const { t } = useTranslation();
-  const cmd = winOs
-    ? staleLockCmd.forWindows(health.lock_path, health.pid_meta_path)
-    : staleLockCmd.forUnix(health.lock_path, health.pid_meta_path);
-  return (
-    <div className="rounded-lg border border-rose-300 bg-rose-50 p-4 dark:border-rose-900 dark:bg-rose-950/40">
-      <div className="flex items-start gap-2 text-rose-700 dark:text-rose-300">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-        <div className="min-w-0 flex-1 text-sm">
-          <div className="font-medium">{t("daemon.staleLock.title")}</div>
-          <p className="mt-1 text-rose-700/80 dark:text-rose-300/80">
-            {t("daemon.staleLock.hint")}
-          </p>
-          {health.last_pid !== null && (
-            <p className="mt-1 text-[11px] text-rose-700/70 dark:text-rose-300/70">
-              {t("daemon.staleLock.lastPidTemplate", { pid: health.last_pid })}
-            </p>
-          )}
-          <ul className="mt-2 space-y-0.5 font-mono text-[11px] text-rose-800 dark:text-rose-200">
-            <li>{health.lock_path}</li>
-            <li>{health.pid_meta_path}</li>
-          </ul>
-          <p className="mt-2 text-[11px] text-rose-700/80 dark:text-rose-300/80">
-            {t("daemon.staleLock.stepLabel")}
-          </p>
-          <div className="mt-2 flex items-center gap-2 rounded-sm bg-card/60 p-2 font-mono text-[11px] dark:bg-card/60">
-            <code className="flex-1 break-all">{cmd}</code>
-            <button
-              onClick={async () => {
-                await navigator.clipboard.writeText(cmd);
-                toast.success(t("daemon.staleLock.copySuccess"));
-              }}
-              className="rounded-sm p-1 text-rose-600 hover:bg-rose-100 dark:text-rose-400 dark:hover:bg-rose-950/40"
-              title={t("daemon.staleLock.copyCmdLabel")}
-            >
-              <Copy className="h-3 w-3" />
-            </button>
-          </div>
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={onRepair}
-              disabled={busy}
-              className="inline-flex items-center gap-1 rounded-md bg-rose-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-rose-500 disabled:opacity-50"
-            >
-              {busy ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Wrench className="h-3.5 w-3.5" />
-              )}
-              {t("daemon.repairNow")}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
+/** 展示锁不可用的事实，并提供官方温和关闭命令与状态复查。 */
 function DaemonBlockedLockBanner({
   health,
-  winOs,
   busy,
   onRepair,
 }: {
   health: Extract<DaemonHealth, { kind: "blocked_lock_unknown_pid" }>;
-  winOs: boolean;
   busy: boolean;
   onRepair: () => void;
 }) {
   const { t } = useTranslation();
-  const cmd = winOs
-    ? blockedLockCmd.forWindows(
-        health.lock_path,
-        health.pid_meta_path,
-        health.last_pid ?? health.candidate_pids[0] ?? null,
-      )
-    : blockedLockCmd.forUnix(
-        health.lock_path,
-        health.pid_meta_path,
-        health.last_pid ?? health.candidate_pids[0] ?? null,
-      );
+  // 1. 仅展示通过官方控制 socket 请求关闭的命令，目标由上游协议确定。
+  const cmd = "git-ai daemon shutdown";
   return (
     <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40">
       <div className="flex items-start gap-2 text-amber-800 dark:text-amber-300">
@@ -977,13 +766,6 @@ function DaemonBlockedLockBanner({
           {health.last_pid !== null && (
             <p className="mt-1 text-[11px] text-amber-800/70 dark:text-amber-300/70">
               {t("daemon.blockedLock.lastPidUnavailableTemplate", { pid: health.last_pid })}
-            </p>
-          )}
-          {health.candidate_pids.length > 0 && (
-            <p className="mt-1 text-[11px] text-amber-800/70 dark:text-amber-300/70">
-              {t("daemon.blockedLock.candidatePidsTemplate", {
-                pids: health.candidate_pids.join(", "),
-              })}
             </p>
           )}
           <ul className="mt-2 space-y-0.5 font-mono text-[11px] text-amber-900 dark:text-amber-200">
@@ -1010,12 +792,8 @@ function DaemonBlockedLockBanner({
             <button
               type="button"
               onClick={onRepair}
-              disabled={busy || (health.last_pid === null && health.candidate_pids.length === 0)}
-              title={
-                health.last_pid === null && health.candidate_pids.length === 0
-                  ? t("daemon.blockedLock.noPidTitle")
-                  : t("daemon.blockedLock.confirmTitle")
-              }
+              disabled={busy}
+              title={t("daemon.blockedLock.confirmTitle")}
               className="inline-flex items-center gap-1 rounded-md bg-amber-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-amber-500 disabled:opacity-50"
             >
               {busy ? (
@@ -1028,49 +806,6 @@ function DaemonBlockedLockBanner({
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function DaemonRepairConfirmBody({
-  health,
-}: {
-  health: Extract<DaemonHealth, { kind: "stale_lock" | "blocked_lock_unknown_pid" }>;
-}) {
-  const { t } = useTranslation();
-  const pids =
-    health.kind === "blocked_lock_unknown_pid"
-      ? Array.from(
-          new Set([
-            ...(health.last_pid !== null ? [health.last_pid] : []),
-            ...health.candidate_pids,
-          ]),
-        )
-      : [];
-  return (
-    <div className="space-y-3">
-      {pids.length > 0 && (
-        <div>
-          <div className="mb-1 text-xs font-medium text-rose-600 dark:text-rose-400">
-            {t("diagnostic.daemonRepairConfirm.willKill")}
-          </div>
-          <ul className="space-y-0.5 font-mono text-xs">
-            {pids.map((pid) => (
-              <li key={pid}>git-ai.exe PID {pid}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <div>
-        <div className="mb-1 text-xs font-medium text-muted-foreground dark:text-neutral-300">
-          {t("diagnostic.daemonRepairConfirm.willDelete")}
-        </div>
-        <ul className="space-y-0.5 break-all font-mono text-xs">
-          <li>{health.lock_path}</li>
-          <li>{health.pid_meta_path}</li>
-        </ul>
-      </div>
-      <p className="text-xs text-muted-foreground">{t("diagnostic.daemonRepairConfirm.note")}</p>
     </div>
   );
 }
