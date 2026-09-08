@@ -1,0 +1,27 @@
+CHANGELOG.md
+  s_e3533267c14ed5::t_00556dccc3d198 11-23,142-143
+package.json
+  s_e3533267c14ed5::t_49c4a625019010 4
+src-tauri/Cargo.lock
+  s_e3533267c14ed5::t_8f26b3068f79b2 1570
+src-tauri/Cargo.toml
+  s_e3533267c14ed5::t_3d9bac0e93e210 3
+src-tauri/tauri.conf.json
+  s_e3533267c14ed5::t_2da180064f36c5 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "645937ac9aac48302c9189a7d811e29cbf2c5613",
+  "prompts": {},
+  "sessions": {
+    "s_e3533267c14ed5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07e7f-9ed6-7cf3-aae3-6a5fd5eb215a",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "bujueyunjian <bbujueyunjian@gmail.com>"
+    }
+  }
+}
